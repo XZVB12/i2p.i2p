@@ -466,7 +466,7 @@ tfoot th {
 }
 
 .snarkTrackerDetails img, .snarkTorrentDetails img, .snarkCommentDetails img, .snarkDirInfo td:first-child img {
-     padding: 3px !important;
+     padding: 3px;
      border: 1px solid transparent !important;
      margin: 0 !important;
 }
@@ -1014,6 +1014,8 @@ _:-ms-lang(x), .snarkTorrentOdd, .SnarkTorrentEven {
 
 .snarkDirInfo .percentBarText, .snarkDirInfo .percentBarOuter, .peerinfo .percentBarText, .peerinfo .percentBarOuter {
      width: 80px;
+     margin-left: 5%;
+     margin-top: 5%;
 }
 
 .percentBarText {
@@ -2236,15 +2238,15 @@ hr.debug:last-child {
 }
 
 .priorityHigh {
-     background: url(/i2psnark/.resources/icons/clock_red.png) left 24px center no-repeat;
+     background: url(/themes/snark/dark/images/icons/clock_red.png) left 24px center no-repeat;
 }
 
 .priorityNormal {
-     background: url(/i2psnark/.resources/icons/clock.png) left 24px  center no-repeat;
+     background: url(/themes/snark/dark/images/icons/clock.png) left 24px  center no-repeat;
 }
 
 .prioritySkip {
-     background: url(/i2psnark/.resources/icons/cancel.png) left 22px center no-repeat;
+     background: url(/themes/snark/dark/images/icons/cancel.png) left 22px center no-repeat;
 }
 
 /* configs */

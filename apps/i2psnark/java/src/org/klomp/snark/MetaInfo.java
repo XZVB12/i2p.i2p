@@ -68,6 +68,7 @@ public class MetaInfo
   private final String created_by;
   private final long creation_date;
   private Map<String, BEValue> infoMap;
+  private int infoBytesLength;
 
   /**
    *  Called by Storage when creating a new torrent from local data
@@ -238,8 +239,18 @@ public class MetaInfo
     piece_length = val.getInt();
 
     val = info.get("pieces");
-    if (val == null)
+    if (val == null) {
+        // BEP 52
+        // We do the check here because a torrent file could be combined v1/v2,
+        // so a version 2 value isn't by itself fatal
+        val = info.get("meta version");
+        if (val != null) {
+            int version = val.getInt();
+            if (version != 1)
+                throw new InvalidBEncodingException("Version " + version + " torrent file not supported");
+        }
         throw new InvalidBEncodingException("Missing piece bytes");
+    }
     piece_hashes = val.getBytes();
 
     val = info.get("length");
@@ -612,11 +623,27 @@ public class MetaInfo
         return BEncoder.bencode(m);
   }
 
-  /** @since 0.8.4 */
+  /**
+   *  Side effect: Caches infoBytesLength.
+   *  @since 0.8.4
+   */
   public synchronized byte[] getInfoBytes() {
     if (infoMap == null)
         createInfoMap();
-    return BEncoder.bencode(infoMap);
+    byte[] rv = BEncoder.bencode(infoMap);
+    infoBytesLength = rv.length;
+    return rv;
+  }
+
+  /**
+   *  The size of getInfoBytes().
+   *  Cached.
+   *  @since 0.9.48
+   */
+  public synchronized int getInfoBytesLength() {
+    if (infoBytesLength > 0)
+        return infoBytesLength;
+    return getInfoBytes().length;
   }
 
   /** @return an unmodifiable view of the Map */

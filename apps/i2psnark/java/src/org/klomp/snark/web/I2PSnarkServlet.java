@@ -2801,6 +2801,10 @@ public class I2PSnarkServlet extends BasicServlet {
      *  @since 0.8.4
      */
     private void addMagnet(String url, File dataDir) {
+        if (url.startsWith(MagnetURI.MAGNET_FULL_V2)) {
+            _manager.addMessage("Version 2 magnet links are not supported");
+            return;
+        }
         try {
             MagnetURI magnet = new MagnetURI(_manager.util(), url);
             String name = magnet.getName();
@@ -4202,7 +4206,7 @@ public class I2PSnarkServlet extends BasicServlet {
      *  @since 0.8.2
      */
     private String toImg(String icon, String altText) {
-        return "<img alt=\"" + altText + "\" height=\"16\" width=\"16\" src=\"" + _contextPath + WARBASE + "icons/" + icon + ".png\">";
+        return "<img alt=\"" + altText + "\" height=\"16\" width=\"16\" src=\"" + _contextPath + WARBASE + "icons/" + _manager.getThemeIconSet() + icon + ".png?" + CoreVersion.VERSION + "\">";
     }
 
     /**

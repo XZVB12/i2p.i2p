@@ -563,7 +563,7 @@ th.snarkGraphicStatus, th.snarkTorrentStatus {
 
 .snarkTrackerDetails img, .snarkTorrentDetails img, .snarkCommentDetails img, .snarkDirInfo td:first-child img {
      margin: 0;
-     padding: 3px !important;
+     padding: 3px;
      max-width: 16px;
      max-height: 16px;
      border: 1px solid transparent !important;
@@ -808,8 +808,6 @@ tr:hover .percentBarText {
      text-align: left;
      white-space: nowrap;
      width: 140px;
-     overflow: hidden;
-     text-overflow: ellipsis;
 }
 
 /* download bars */
@@ -907,6 +905,8 @@ tr:hover .percentBarText {
 
 .snarkDirInfo .percentBarText, .snarkDirInfo .percentBarOuter, .peerinfo .percentBarText, .peerinfo .percentBarOuter {
      width: 80px !important;
+     margin-left: 30%;
+     margin-top: 5%;
 }
 
 /* end download bars */
@@ -1971,15 +1971,15 @@ hr.debug:last-child {
 }
 
 .priorityHigh {
-     background: url(/i2psnark/.resources/icons/clock_red.png) left 24px center no-repeat;
+     background: url(/themes/snark/light/images/icons/clock_red.png) left 24px center no-repeat;
 }
 
 .priorityNormal {
-     background: url(/i2psnark/.resources/icons/clock.png) left 24px center no-repeat;
+     background: url(/themes/snark/light/images/icons/clock.png) left 24px center no-repeat;
 }
 
 .prioritySkip {
-     background: url(/i2psnark/.resources/icons/cancel.png) left 22px center no-repeat;
+     background: url(/themes/snark/light/images/icons/cancel.png) left 22px center no-repeat;
 }
 
 /* end priorities */
@@ -2706,3 +2706,4 @@ a, a:link, th, td, button, input, select, textarea {
      background: #f60 url(images/button_tracker_active.png) left 3px center no-repeat !important;
      background-size: 14px auto !important;
 }
+

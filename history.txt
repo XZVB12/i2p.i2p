@@ -1,3 +1,60 @@
+2020-10-07 zzz
+ * Build:
+   - Set javac release property (ticket #2775)
+   - Ant version 1.9.8 or higher now required
+   - Drop support for Xenial package build
+   - Fix up BOB build configuration
+   - Fix i2psnark standalone build
+
+2020-10-03 zzz
+ * Router: Support building tunnels through ECIES routers (proposal 152)
+
+2020-09-28 zzz
+ * Router: Don't unregister a message without a selector (ticket #2771)
+
+2020-09-27 zzz
+ * Streaming: Fix tag option handling
+
+2020-09-26 zzz
+ * JBigI: GMP 6.2.0 for linux 64 bit Zen and Zen2 (ticket #1869)
+
+2020-09-22 zzz
+ * i2ptunnel: Change enctype default to both for:
+   HTTP, IRC, and Streamr servers
+   IRC, SOCKS IRC, and Streamr clients
+ * Susimail, SAM: More defensive ByteBuffer casting (ticket #2775)
+
+2020-09-18 zzz
+ * Build: More git support for release and Debian targets
+
+2020-09-16 zzz
+ * i2psnark: Defensive checks for v2 format files and magnet links
+ * Router: Block same-country when in hidden mode (ticket #2759)
+
+2020-09-11 zzz
+ * Blocklist: Refactoring, Move HTML status generation to console
+ * Console: Fix /configclients help message for split client config files
+ * Crypto: Cache HMAC256 instances
+ * GeoIP: Add methods to get all IPs for a country (ticket #2759)
+ * Router: Use MuxedSKM for ECIES routers (proposal 156 WIP)
+
+2020-09-08 zzz
+ * Blocklist: Track versions of each file
+ * NTCP: Call afterSend() for multiple messages in NTCP2 (ticket #2769)
+
+2020-09-04 zzz
+ * Console: Support remote lookup of full router hash from search form
+ * Tunnels: Don't try to decrypt build record if router is ECIES (proposal 152 WIP)
+
+2020-09-02 zzz
+ * Installer: New Ed25519 destinations for postman's servers
+ * Router:
+   - Prep for router encryption types (Proposal 156 WIP)
+   - Randomize SSU intro key
+   - Reduce next key threshold for ratchet
+   - Change ratchet SparseArray from int to char to reduce space
+ * Util: Fix decompression of compressed zero bytes (ticket #2770)
+
 2020-08-29 zzz
  * i2ptunnel: Prevent creating bad alt destination when
    tunnel is running

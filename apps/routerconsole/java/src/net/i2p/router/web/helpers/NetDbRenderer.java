@@ -19,7 +19,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -28,6 +27,7 @@ import java.util.TreeSet;
 
 import net.i2p.crypto.EncType;
 import net.i2p.crypto.SigType;
+import net.i2p.data.Base64;
 import net.i2p.data.DatabaseEntry;
 import net.i2p.data.DataHelper;
 import net.i2p.data.Destination;
@@ -38,6 +38,7 @@ import net.i2p.data.LeaseSet2;
 import net.i2p.data.PublicKey;
 import net.i2p.data.router.RouterAddress;
 import net.i2p.data.router.RouterInfo;
+import net.i2p.router.JobImpl;
 import net.i2p.router.RouterContext;
 import net.i2p.router.TunnelPoolSettings;
 import net.i2p.router.util.HashDistance;   // debug
@@ -113,6 +114,38 @@ class NetDbRenderer {
                .append(_t("Never reveal your router identity to anyone, as it is uniquely linked to your IP address in the network database."))
                .append("</td></tr></table>");
             renderRouterInfo(buf, _context.router().getRouterInfo(), true, true);
+        } else if (routerPrefix != null && routerPrefix.length() >= 44) {
+            // easy way, full hash
+            byte[] h = Base64.decode(routerPrefix);
+            if (h != null && h.length == Hash.HASH_LENGTH) {
+                Hash hash = new Hash(h);
+                RouterInfo ri = _context.netDb().lookupRouterInfoLocally(hash);
+                if (ri == null) {
+                    // remote lookup
+                    LookupWaiter lw = new LookupWaiter();
+                    _context.netDb().lookupRouterInfo(hash, lw, lw, 8*1000);
+                    // just wait right here in the middle of the rendering, sure
+                    synchronized(lw) {
+                        try { lw.wait(9*1000); } catch (InterruptedException ie) {}
+                    }
+                    ri = _context.netDb().lookupRouterInfoLocally(hash);
+                }
+                if (ri != null) {
+                   renderRouterInfo(buf, ri, false, true);
+                } else {
+                    buf.append("<div class=\"netdbnotfound\">");
+                    buf.append(_t("Router")).append(' ');
+                    if (routerPrefix != null)
+                        buf.append(routerPrefix);
+                    buf.append(' ').append(_t("not found in network database"));
+                    buf.append("</div>");
+                }
+            } else {
+                buf.append("<div class=\"netdbnotfound\">");
+                buf.append("Bad Base64 router hash").append(' ');
+                buf.append(DataHelper.escapeHTML(routerPrefix));
+                buf.append("</div>");
+            }
         } else {
             StringBuilder ubuf = new StringBuilder();
             if (routerPrefix != null)
@@ -370,6 +403,19 @@ class NetDbRenderer {
     }
 
     /**
+     *  @since 0.9.48
+     */
+    private class LookupWaiter extends JobImpl {
+        public LookupWaiter() { super(_context); }
+        public void runJob() {
+            synchronized(this) {
+                notifyAll();
+            }
+        }
+        public String getName() { return "Console netdb lookup"; }
+    }
+
+    /**
      *  Special handling for 'O' cap
      *  @param caps non-null
      *  @since 0.9.38
@@ -427,7 +473,7 @@ class NetDbRenderer {
         if (debug) {
             buf.append("<tr><td><b>Published (RAP) Leasesets:</b></td><td colspan=\"3\">").append(netdb.getKnownLeaseSets()).append("</td></tr>\n")
                .append("<tr><td><b>Mod Data:</b></td><td>").append(DataHelper.getUTF8(_context.routerKeyGenerator().getModData())).append("</td>")
-               .append("<td><b>Last Changed:</b></td><td>").append(new Date(_context.routerKeyGenerator().getLastChanged())).append("</td></tr>\n")
+               .append("<td><b>Last Changed:</b></td><td>").append(DataHelper.formatTime(_context.routerKeyGenerator().getLastChanged())).append("</td></tr>\n")
                .append("<tr><td><b>Next Mod Data:</b></td><td>").append(DataHelper.getUTF8(_context.routerKeyGenerator().getNextModData())).append("</td>")
                .append("<td><b>Change in:</b></td><td>").append(DataHelper.formatDuration(_context.routerKeyGenerator().getTimeTillMidnight())).append("</td></tr>\n");
         }
@@ -592,9 +638,7 @@ class NetDbRenderer {
             boolean isMeta = ls.getType() == DatabaseEntry.KEY_TYPE_META_LS2;
             for (int i = 0; i < ls.getLeaseCount(); i++) {
                 Lease lease = ls.getLease(i);
-                buf.append("<li><b>").append(_t("Lease")).append(' ').append(i + 1).append(":</b> <span class=\"netdb_gateway\" title=\"")
-                   .append(_t("Gateway")).append("\"><img src=\"themes/console/images/info/gateway.png\" alt=\"")
-                   .append(_t("Gateway")).append("\"></span> <span class=\"tunnel_peer\">");
+                buf.append("<li><b>").append(_t("Lease")).append(' ').append(i + 1).append(":</b> <span class=\"tunnel_peer\">");
                 buf.append(_context.commSystem().renderPeerHTML(lease.getGateway()));
                 buf.append("</span> ");
                 if (!isMeta) {
@@ -934,7 +978,9 @@ class NetDbRenderer {
         }
         if (full) {
             buf.append("</td></tr><tr><td><b>").append(_t("Signing Key")).append(":</b></td><td colspan=\"2\">")
-               .append(info.getIdentity().getSigningPublicKey().getType().toString());
+               .append(info.getIdentity().getSigningPublicKey().getType());
+            buf.append("</td></tr><tr><td><b>").append(_t("Encryption Key")).append(":</b></td><td colspan=\"2\">")
+               .append(info.getIdentity().getPublicKey().getType());
         }
         buf.append("</td></tr>\n<tr>")
            .append("<td><b>").append(_t("Addresses")).append(":</b></td><td colspan=\"2\"");

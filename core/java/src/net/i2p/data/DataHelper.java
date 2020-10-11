@@ -302,19 +302,22 @@ public class DataHelper {
      *
      * Properties from the defaults table of props (if any) are not written out by this method.
      *
-     * @deprecated unused
-     *
      * @param target returned array as specified in data structure spec
      * @param props source may be null
      * @return new offset
      * @throws DataFormatException if any string is over 255 bytes long, or if the total length
      *                             (not including the two length bytes) is greater than 65535 bytes.
+     * @since un-deprecated in 0.9.48
      */
-    @Deprecated
     public static int toProperties(byte target[], int offset, Properties props) throws DataFormatException, IOException {
-        if (props != null) {
-            OrderedProperties p = new OrderedProperties();
-            p.putAll(props);
+        if (props != null && !props.isEmpty()) {
+            Properties p;
+            if (props instanceof OrderedProperties) {
+                p = props;
+            } else {
+                p = new OrderedProperties();
+                p.putAll(props);
+            }
             ByteArrayOutputStream baos = new ByteArrayOutputStream(p.size() * 64);
             for (Map.Entry<Object, Object> entry : p.entrySet()) {
                 String key = (String) entry.getKey();
@@ -1902,7 +1905,8 @@ public class DataHelper {
      */
     public static byte[] decompress(byte orig[], int offset, int length) throws IOException {
         if (orig == null) return orig;
-        if (length < 23)
+        // normal overhead is 23 bytes, but a compress of zero bytes is 20 bytes
+        if (length < 20)
             throw new IOException("length");
         if (length < 65559 && orig[offset + 10] == 0x01)
             return zeroDecompress(orig, offset, length);

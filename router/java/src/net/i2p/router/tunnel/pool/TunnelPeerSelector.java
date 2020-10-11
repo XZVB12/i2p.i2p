@@ -18,7 +18,9 @@ import net.i2p.crypto.SigType;
 import net.i2p.data.DataFormatException;
 import net.i2p.data.DataHelper;
 import net.i2p.data.Hash;
+import net.i2p.data.router.RouterIdentity;
 import net.i2p.data.router.RouterInfo;
+import net.i2p.router.LeaseSetKeys;
 import net.i2p.router.Router;
 import net.i2p.router.RouterContext;
 import net.i2p.router.TunnelPoolSettings;
@@ -97,7 +99,7 @@ public abstract class TunnelPeerSelector extends ConnectChecker {
     /**
      *  For debugging, also possibly for restricted routes?
      *  Needs analysis and testing
-     *  @return should always be false
+     *  @return usually false
      */
     protected boolean shouldSelectExplicit(TunnelPoolSettings settings) {
         if (settings.isExploratory()) return false;
@@ -116,7 +118,7 @@ public abstract class TunnelPeerSelector extends ConnectChecker {
     /**
      *  For debugging, also possibly for restricted routes?
      *  Needs analysis and testing
-     *  @return should always be false
+     *  @return the peers
      */
     protected List<Hash> selectExplicit(TunnelPoolSettings settings, int length) {
         String peers = null;
@@ -138,8 +140,7 @@ public abstract class TunnelPeerSelector extends ConnectChecker {
                 if (ctx.profileOrganizer().isSelectable(peer)) {
                     rv.add(peer);
                 } else {
-                    if (log.shouldLog(Log.DEBUG))
-                        log.debug("Explicit peer is not selectable: " + peerStr);
+                    log.logAlways(Log.WARN, "Explicit peer is not selectable: " + peerStr);
                 }
             } catch (DataFormatException dfe) {
                 if (log.shouldLog(Log.ERROR))
@@ -148,10 +149,24 @@ public abstract class TunnelPeerSelector extends ConnectChecker {
         }
         
         int sz = rv.size();
-        Collections.shuffle(rv, ctx.random());
+        if (sz == 0) {
+            log.logAlways(Log.WARN, "No valid explicit peers found, building zero hop");
+        } else if (sz > 1) {
+            Collections.shuffle(rv, ctx.random());
+        }
         
-        while (rv.size() > length)
+        while (rv.size() > length) {
             rv.remove(0);
+        }
+        if (rv.size() < length) {
+            int more = length - rv.size();
+            Set<Hash> exclude = getExclude(settings.isInbound(), settings.isExploratory());
+            exclude.addAll(rv);
+            Set<Hash> matches = new HashSet<Hash>(more);
+            ctx.profileOrganizer().selectFastPeers(more, exclude, matches, 0);
+            rv.addAll(matches);
+            Collections.shuffle(rv, ctx.random());
+        }
         
         if (log.shouldLog(Log.INFO)) {
             StringBuilder buf = new StringBuilder();
@@ -471,7 +486,11 @@ public abstract class TunnelPeerSelector extends ConnectChecker {
             maxLen++;
         if (cap.length() <= maxLen)
             return true;
-        if (peer.getIdentity().getPublicKey().getType() != EncType.ELGAMAL_2048)
+        RouterIdentity ident = peer.getIdentity();
+        if (ident.getSigningPublicKey().getType() == SigType.DSA_SHA1)
+            return true;
+        EncType type = ident.getPublicKey().getType();
+        if (!LeaseSetKeys.SET_BOTH.contains(type))
             return true;
 
         // otherwise, it contains flags we aren't trying to focus on,
