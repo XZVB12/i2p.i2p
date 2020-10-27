@@ -672,7 +672,6 @@ class InboundEstablishState extends EstablishBase implements NTCP2Payload.Payloa
             }
             changeState(State.IB_NTCP2_GOT_X);
             _received = 0;
-
             // replay check using encrypted key
             if (!_transport.isHXHIValid(_X)) {
                 _context.statManager().addRateData("ntcp.replayHXxorBIH", 1);
@@ -680,13 +679,6 @@ class InboundEstablishState extends EstablishBase implements NTCP2Payload.Payloa
                 return;
             }
 
-            try {
-                _handshakeState = new HandshakeState(HandshakeState.PATTERN_ID_XK, HandshakeState.RESPONDER, _transport.getXDHFactory());
-            } catch (GeneralSecurityException gse) {
-                throw new IllegalStateException("bad proto", gse);
-            }
-            _handshakeState.getLocalKeyPair().setPublicKey(_transport.getNTCP2StaticPubkey(), 0);
-            _handshakeState.getLocalKeyPair().setPrivateKey(_transport.getNTCP2StaticPrivkey(), 0);
             Hash h = _context.routerHash();
             SessionKey bobHash = new SessionKey(h.getData());
             // save encrypted data for CBC for msg 2
@@ -696,6 +688,19 @@ class InboundEstablishState extends EstablishBase implements NTCP2Payload.Payloa
                 fail("Bad msg 1, X = 0");
                 return;
             }
+            // fast MSB check for key < 2^255
+            if ((_X[KEY_SIZE - 1] & 0x80) != 0) {
+                fail("Bad PK msg 1");
+                return;
+            }
+
+            try {
+                _handshakeState = new HandshakeState(HandshakeState.PATTERN_ID_XK, HandshakeState.RESPONDER, _transport.getXDHFactory());
+            } catch (GeneralSecurityException gse) {
+                throw new IllegalStateException("bad proto", gse);
+            }
+            _handshakeState.getLocalKeyPair().setKeys(_transport.getNTCP2StaticPrivkey(), 0,
+                                                      _transport.getNTCP2StaticPubkey(), 0);
             byte options[] = new byte[OPTIONS1_SIZE];
             try {
                 _handshakeState.start();

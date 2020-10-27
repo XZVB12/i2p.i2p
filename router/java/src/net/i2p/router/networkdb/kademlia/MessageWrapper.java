@@ -43,8 +43,11 @@ public class MessageWrapper {
      *  to hide the contents from the OBEP.
      *  Caller must call acked() or fail() on the returned object.
      *
+     *  ELGAMAL ONLY. Both from and to must support ElGamal.
+     *
      *  @param from must be a local client with a session key manager,
-     *              or null to use the router's session key manager
+     *              or null to use the router's session key manager.
+     *              SessionKeyManager MUST support ElGamal.
      *  @param to must be ELGAMAL_2048 EncType
      *  @return null on encrypt failure
      */
@@ -125,16 +128,13 @@ public class MessageWrapper {
     /**
      *  Garlic wrap a message from nobody, destined for a router,
      *  to hide the contents from the OBEP.
-     *  Forces ElGamal.
+     *  Forces full asymmetric encryption.
      *
-     *  @param to must be ELGAMAL_2048 EncType
+     *  @param to must be ELGAMAL_2048 or ECIES_X25519 EncType
      *  @return null on encrypt failure
      *  @since 0.9.5
      */
     static GarlicMessage wrap(RouterContext ctx, I2NPMessage m, RouterInfo to) {
-        PublicKey key = to.getIdentity().getPublicKey();
-        if (key.getType() != EncType.ELGAMAL_2048)
-            return null;
 
         PayloadGarlicConfig payload = new PayloadGarlicConfig(Certificate.NULL_CERT,
                                                               ctx.random().nextLong(I2NPMessage.MAX_ID_VALUE),
@@ -142,9 +142,19 @@ public class MessageWrapper {
                                                               DeliveryInstructions.LOCAL, m);
         payload.setRecipient(to);
 
-        SessionKey sentKey = ctx.keyGenerator().generateSessionKey();
-        GarlicMessage msg = GarlicMessageBuilder.buildMessage(ctx, payload, null, 
-                                                              key, sentKey, null);
+        PublicKey key = to.getIdentity().getPublicKey();
+        EncType type = key.getType();
+        GarlicMessage msg;
+        if (type == EncType.ELGAMAL_2048) {
+            SessionKey sentKey = ctx.keyGenerator().generateSessionKey();
+            msg = GarlicMessageBuilder.buildMessage(ctx, payload, null, key, sentKey, null);
+        } else if (type == EncType.ECIES_X25519) {
+            payload.setRecipientPublicKey(key);
+            msg = GarlicMessageBuilder.buildECIESMessage(ctx, payload);
+        } else {
+            // unsupported
+            msg = null;
+        }
         return msg;
     }
 
@@ -178,9 +188,9 @@ public class MessageWrapper {
 
     /**
      *  Create a single key and tag, for receiving a single encrypted message,
-     *  and register it with the router's session key manager, to expire in two minutes.
-     *  The recipient can then send us an AES-encrypted message,
-     *  avoiding ElGamal.
+     *  and register it with the client's session key manager, to expire in the time specified.
+     *  The recipient can then send us an AES- or ChaCha- encrypted message,
+     *  avoiding full ElGamal or ECIES.
      *
      *  @param expiration time from now
      *  @since 0.9.7
@@ -191,9 +201,9 @@ public class MessageWrapper {
 
     /**
      *  Create a single key and tag, for receiving a single encrypted message,
-     *  and register it with the client's session key manager, to expire in two minutes.
-     *  The recipient can then send us an AES-encrypted message,
-     *  avoiding ElGamal.
+     *  and register it with the client's session key manager, to expire in the time specified.
+     *  The recipient can then send us an AES- or ChaCha- encrypted message,
+     *  avoiding full ElGamal or ECIES.
      *
      *  @param expiration time from now
      *  @return null if we can't find the SKM for the localDest
@@ -209,9 +219,9 @@ public class MessageWrapper {
 
     /**
      *  Create a single key and tag, for receiving a single encrypted message,
-     *  and register it with the given session key manager, to expire in two minutes.
-     *  The recipient can then send us an AES-encrypted message,
-     *  avoiding ElGamal.
+     *  and register it with the client's session key manager, to expire in the time specified.
+     *  The recipient can then send us an AES- or ChaCha- encrypted message,
+     *  avoiding full ElGamal or ECIES.
      *
      *  @param expiration time from now
      *  @return non-null

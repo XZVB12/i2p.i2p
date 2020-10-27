@@ -1,3 +1,51 @@
+2020-10-23 zzz
+ * i2ptunnel: Remove mtn tunnel (new installs only)
+ * Tunnels:
+   - Move AES reply keys from HopConfig to TunnelCreatorConfig
+   - Add missing expiration field to ECIES BRR
+
+2020-10-21 zzz
+ * NetDB:
+   - ECIES router support for encrypted lookups and stores (proposal #156)
+   - Reseed after a long downtime
+ * SSU:
+   - Increase socket buffer size (ticket #2781)
+   - Redesign of the congestion control (tickets #2412, #2649, #2654, #2713)
+
+2020-10-17 zzz
+ * i2psnark: Remove references to "maggot" links
+ * SSU: Fix calculation of nextSendDelay (ticket #2714)
+
+2020-10-15 zzz
+ * Crypto: libjbigi for aarch64 (ticket #1840)
+ * i2psnark: Hide BEP 48 padding directory from UI
+ * Router:
+   - More efficient initialization of Noise state
+   - Destroy ratchet HandshakeState after NS failure
+   - Add support for ratchet zero key (proposals #144, #156)
+ * Util: Singleton OrderedProperties comparator
+
+2020-10-12 zzz
+ * DTG: Enable by default for Linux KDE and LXDE;
+   Hide option on /configservice if not supported
+ * New translations for Kurdish, Turkmen, Argentinian Spanish
+ * NTCP:
+   - Fix sending termination on idle timeout (ticket #2777)
+   - Catch possible race IAE in Reader
+
+2020-10-11 zzz
+ * Installer: Disable pack200 (ticket #2778)
+
+2020-10-10 zzz
+ * i2psnark: Cache length of metainfo
+ * Transport: Improved IPv6 address validation
+
+2020-10-09 zzz
+ *  NetDB:
+    - Don't use DSA-SHA1 routers for lookups, stores, or tunnel peers
+    - Don't use non-ElGamal routers for lookups or stores
+    - Prevent DSA-SHA1 routers from auto-floodfill
+
 2020-10-07 zzz
  * Build:
    - Set javac release property (ticket #2775)
@@ -5,6 +53,7 @@
    - Drop support for Xenial package build
    - Fix up BOB build configuration
    - Fix i2psnark standalone build
+ * i2ptunnel: Filter server response headers even if not compressing
 
 2020-10-03 zzz
  * Router: Support building tunnels through ECIES routers (proposal 152)

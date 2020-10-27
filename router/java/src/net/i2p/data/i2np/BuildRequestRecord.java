@@ -18,6 +18,7 @@ import net.i2p.data.Hash;
 import net.i2p.data.PrivateKey;
 import net.i2p.data.PublicKey;
 import net.i2p.data.SessionKey;
+import net.i2p.util.Log;
 import net.i2p.router.RouterContext;
 
 /**
@@ -112,6 +113,9 @@ public class BuildRequestRecord {
     public static final int IV_SIZE = 16;
     /** we show 16 bytes of the peer hash outside the elGamal block */
     public static final int PEER_SIZE = 16;
+    private static final int DEFAULT_EXPIRATION_SECONDS = 10*60;
+    private static final int EC_LEN = EncType.ECIES_X25519.getPubkeyLen();
+    private static final byte[] NULL_KEY = new byte[EC_LEN];
     
     /**
      *  @return 222 (ElG) or 464 (ECIES) bytes, non-null
@@ -143,7 +147,8 @@ public class BuildRequestRecord {
     private static final int OFF_REPLY_IV_EC = OFF_REPLY_KEY_EC + SessionKey.KEYSIZE_BYTES;
     private static final int OFF_FLAG_EC = OFF_REPLY_IV_EC + IV_SIZE;
     private static final int OFF_REQ_TIME_EC = OFF_FLAG_EC + 4;
-    private static final int OFF_SEND_MSG_ID_EC = OFF_REQ_TIME_EC + 4;
+    private static final int OFF_EXPIRATION = OFF_REQ_TIME_EC + 4;
+    private static final int OFF_SEND_MSG_ID_EC = OFF_EXPIRATION + 4;
     private static final int OFF_OPTIONS = OFF_SEND_MSG_ID_EC + 4;
     private static final int LENGTH_EC = 464;
     private static final int MAX_OPTIONS_LENGTH = LENGTH_EC - OFF_OPTIONS; // includes options length
@@ -251,6 +256,16 @@ public class BuildRequestRecord {
     public long readReplyMessageId() {
         int off = _isEC ? OFF_SEND_MSG_ID_EC : OFF_SEND_MSG_ID;
         return DataHelper.fromLong(_data, off, 4);
+    }
+
+    /**
+     * The expiration in milliseconds from now.
+     * @since 0.9.48
+     */
+    public long readExpiration() {
+        if (!_isEC)
+            return DEFAULT_EXPIRATION_SECONDS * 1000L;
+        return DataHelper.fromLong(_data, OFF_EXPIRATION, 4) * 1000L;
     }
 
     /**
@@ -367,30 +382,51 @@ public class BuildRequestRecord {
      */
     public BuildRequestRecord(RouterContext ctx, PrivateKey ourKey,
                               EncryptedBuildRecord encryptedRecord) throws DataFormatException {
+        byte[] encrypted = encryptedRecord.getData();
         byte decrypted[];
         EncType type = ourKey.getType();
         if (type == EncType.ELGAMAL_2048) {
             byte preDecrypt[] = new byte[514];
-            System.arraycopy(encryptedRecord.getData(), PEER_SIZE, preDecrypt, 1, 256);
-            System.arraycopy(encryptedRecord.getData(), PEER_SIZE + 256, preDecrypt, 258, 256);
+            System.arraycopy(encrypted, PEER_SIZE, preDecrypt, 1, 256);
+            System.arraycopy(encrypted, PEER_SIZE + 256, preDecrypt, 258, 256);
             decrypted = ctx.elGamalEngine().decrypt(preDecrypt, ourKey);
             _isEC = false;
         } else if (type == EncType.ECIES_X25519) {
+            // There's several reasons to get bogus-encrypted requests:
+            // very old Java and i2pd routers that don't check the type at all and send ElG,
+            // i2pd treating type 4 like type 1,
+            // and very old i2pd routers like 0.9.32 that have all sorts of bugs.
+            // The following 3 checks weed out about 85% before we get to the DH.
+
+            // fast MSB check for key < 2^255
+            if ((encrypted[PEER_SIZE + EC_LEN - 1] & 0x80) != 0)
+                throw new DataFormatException("Bad PK decrypt fail");
+            // i2pd 0.9.46/47 bug, treating us like type 1
+            if (DataHelper.eq(ourKey.toPublic().getData(), 0, encrypted, PEER_SIZE, EC_LEN))
+                throw new DataFormatException("Our PK decrypt fail");
+            // very old i2pd bug?
+            if (DataHelper.eq(NULL_KEY, 0, encrypted, PEER_SIZE, EC_LEN))
+                throw new DataFormatException("Null PK decrypt fail");
             HandshakeState state = null;
             try {
                 KeyFactory kf = TEST ? TESTKF : ctx.commSystem().getXDHFactory();
                 state = new HandshakeState(HandshakeState.PATTERN_ID_N, HandshakeState.RESPONDER, kf);
-                state.getLocalKeyPair().setPublicKey(ourKey.toPublic().getData(), 0);
-                state.getLocalKeyPair().setPrivateKey(ourKey.getData(), 0);
+                state.getLocalKeyPair().setKeys(ourKey.getData(), 0,
+                                                ourKey.toPublic().getData(), 0);
                 state.start();
                 decrypted = new byte[LENGTH_EC];
-                state.readMessage(encryptedRecord.getData(), PEER_SIZE, EncryptedBuildRecord.LENGTH - PEER_SIZE,
+                state.readMessage(encrypted, PEER_SIZE, EncryptedBuildRecord.LENGTH - PEER_SIZE,
                                   decrypted, 0);
                 _chachaReplyKey = new SessionKey(state.getChainingKey());
                 _chachaReplyAD = new byte[32];
                 System.arraycopy(state.getHandshakeHash(), 0, _chachaReplyAD, 0, 32);
             } catch (GeneralSecurityException gse) {
-                throw new DataFormatException("decrypt fail", gse);
+                if (state != null) {
+                    Log log = ctx.logManager().getLog(BuildRequestRecord.class);
+                    if (log.shouldInfo())
+                        log.info("ECIES BRR decrypt failure, state at failure:\n" + state);
+                }
+                throw new DataFormatException("ChaCha decrypt fail", gse);
             } finally {
                 if (state != null)
                     state.destroy();
@@ -511,6 +547,7 @@ public class BuildRequestRecord {
         // this ignores leap seconds
         truncatedMinute /= (60*1000L);
         DataHelper.toLong(buf, OFF_REQ_TIME_EC, 4, truncatedMinute);
+        DataHelper.toLong(buf, OFF_EXPIRATION, 4, DEFAULT_EXPIRATION_SECONDS);
         DataHelper.toLong(buf, OFF_SEND_MSG_ID_EC, 4, nextMsgId);
         try {
             int off = DataHelper.toProperties(buf, OFF_OPTIONS, options);
@@ -547,7 +584,8 @@ public class BuildRequestRecord {
            .append(" reply key: ").append(readReplyKey())
            .append(" reply IV: ").append(Base64.encode(readReplyIV()))
            .append(" time: ").append(DataHelper.formatTime(readRequestTime()))
-           .append(" reply msg id: ").append(readReplyMessageId());
+           .append(" reply msg id: ").append(readReplyMessageId())
+           .append(" expires in: ").append(DataHelper.formatDuration(readExpiration()));
         if (_isEC) {
             buf.append(" options: ").append(readOptions());
             if (_chachaReplyKey != null) {
@@ -562,6 +600,7 @@ public class BuildRequestRecord {
 
 /****
     public static void main(String[] args) throws Exception {
+        System.out.println("OFF_OPTIONS is " + OFF_OPTIONS);
         RouterContext ctx = new RouterContext(null);
         TESTKF = new net.i2p.router.transport.crypto.X25519KeyFactory(ctx);
         byte[] h = new byte[32];
