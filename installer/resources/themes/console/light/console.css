@@ -374,6 +374,7 @@ h4.sb_info + hr + form {
      white-space: nowrap;
      overflow: hidden;
      text-overflow: ellipsis;
+     padding-left: 2px;
 }
 
 #sb_localtunnels tr:hover td {
@@ -2924,6 +2925,7 @@ a:link, #graphopts a:visited, .news #newsdisplay a, .news #newsdisplay a:visited
      font-weight: bold;
      word-wrap: break-word;
      outline: none;
+     padding-top: 4px;
 }
 
 a:visited, .tab a {
@@ -2945,7 +2947,7 @@ a:active {
 }
 
 .links li {
-     list-style: url(images/link.png) !important;
+     list-style: none;
      text-align: justify !important;
      line-height: 140% !important;
      margin-right: 10px !important;
