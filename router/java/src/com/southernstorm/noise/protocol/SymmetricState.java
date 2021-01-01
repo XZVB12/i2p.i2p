@@ -121,7 +121,8 @@ class SymmetricState implements Destroyable, Cloneable {
 		} else if (patternId.equals(HandshakeState.PATTERN_ID_IK)) {
 			initCK = INIT_CK_IK;
 			initHash = INIT_HASH_IK;
-		} else if (patternId.equals(HandshakeState.PATTERN_ID_N)) {
+		} else if (patternId.equals(HandshakeState.PATTERN_ID_N) ||
+		           patternId.equals(HandshakeState.PATTERN_ID_N_NO_RESPONSE)) {
 			initCK = INIT_CK_N;
 			initHash = INIT_HASH_N;
 		} else {
@@ -274,6 +275,16 @@ class SymmetricState implements Destroyable, Cloneable {
 	}
 
 	/**
+	 * I2P - Same as encryptAndHash() but without the post-mixHash(), for N only.
+	 * @since 0.9.49
+	 */
+	public int encryptOnly(byte[] plaintext, int plaintextOffset, byte[] ciphertext, int ciphertextOffset, int length) throws ShortBufferException
+	{
+		int ciphertextLength = cipher.encryptWithAd(h, plaintext, plaintextOffset, ciphertext, ciphertextOffset, length);
+		return ciphertextLength;
+	}
+
+	/**
 	 * Decrypts a block of ciphertext and mixes it into the handshake hash.
 	 * 
 	 * @param ciphertext The buffer containing the ciphertext to decrypt.
@@ -300,6 +311,15 @@ class SymmetricState implements Destroyable, Cloneable {
 		System.arraycopy(h, 0, prev_h, 0, h.length);
 		mixHash(ciphertext, ciphertextOffset, length);
 		return cipher.decryptWithAd(prev_h, ciphertext, ciphertextOffset, plaintext, plaintextOffset, length);
+	}
+
+	/**
+	 * I2P - Same as decryptAndHash() but without the post-mixHash(), for N only.
+	 * @since 0.9.49
+	 */
+	public int decryptOnly(byte[] ciphertext, int ciphertextOffset, byte[] plaintext, int plaintextOffset, int length) throws ShortBufferException, BadPaddingException
+	{
+		return cipher.decryptWithAd(h, ciphertext, ciphertextOffset, plaintext, plaintextOffset, length);
 	}
 
 	/**

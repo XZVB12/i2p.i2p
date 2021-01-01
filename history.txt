@@ -1,7 +1,74 @@
+2020-12-31 zzz
+ * NetDB:
+   - Drop lookups with replies going to us
+   - Extend lookup expire time
+
+2020-12-30 zzz
+ * Ratchet: Fix N pattern for ECIES build replies
+
+2020-12-29 zzz
+ * Crypto: Cache AES Ciphers
+ * i2ptunnel: Disable shared clients (DSA)
+ * NetDB: Verify RI stores for a while after starting
+ * Ratchet: mixHash() not required after message for N pattern
+
+2020-12-28 zzz
+ * Debian: Add Java 15/16 to control
+
+2020-12-27 zzz
+ * SSU: Fix restoration of window after failed message
+
+2020-12-26 zzz
+ * Console:
+   - Move flag overrides to war
+   - Move initial news to jar
+ * Router: Move some geoip files to jars
+
+2020-12-24 zzz
+ * I2CP: Fix requesting leasesets for subsessions (ticket #2458)
+
+2020-12-23 zzz
+ * Crypto: Increase ratchet tag window
+ * I2CP: Fix encrypted leaseset for ECIES and offline keys
+ * i2ptunnel: Fix writing config file twice on save
+
+2020-12-22 zzz
+ * Console:
+   - Add netdb search by enc. type
+   - Move readme files to war
+
+2020-12-21 zzz
+ * SSU: Fix partial acks not being sent
+
+2020-12-20 zzz
+ * Console: Fix theme selection
+ * Proxy: Move error page resources to jar
+ * SSU: Westwood+ congestion control (ticket #2427)
+
+2020-12-18 zzz
+ * Crypto: Fix use after free (ticket #2797)
+
+2020-12-17 zzz
+ * SSU: Send subset of fragments (ticket #2427)
+
+2020-12-16 zzz
+ * NetDB: Fix rare floodfill monitor NPE
+ * SSU: Fix occasional high CPU usage
+
+2020-12-11 zzz
+ * Router (proposal 156):
+   - Change router ECIES SKM to use N pattern
+   - Allow encrypted messages to ECIES routers
+   - Allow ECIES routers to become floodfill
+   - Add XDH factory to VM comm system for tests
+
 2020-12-06 zzz
  * Console, webapps: Move web resources to wars
- * i2psnark: Initial support for web seeds (WIP)
- * Util: Change DoH to RFC 8484 protocol
+ * i2psnark:
+   - Add support for web seeds (ticket #2780)
+   - Preserve file attribute strings in metainfo
+ * Streaming: Add Retry-After header to throttle response
+ * Util: Change DoH to RFC 8484 protocol (ticket #2201)
 
 * 2020-12-01 0.9.48 released
 

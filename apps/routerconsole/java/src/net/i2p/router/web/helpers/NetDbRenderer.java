@@ -104,7 +104,7 @@ class NetDbRenderer {
     public void renderRouterInfoHTML(Writer out, int pageSize, int page,
                                      String routerPrefix, String version,
                                      String country, String family, String caps,
-                                     String ip, String sybil, int port, SigType type,
+                                     String ip, String sybil, int port, SigType type, EncType etype,
                                      String mtu, String ipv6, String ssucaps,
                                      String tr, int cost) throws IOException {
         StringBuilder buf = new StringBuilder(4*1024);
@@ -162,6 +162,8 @@ class NetDbRenderer {
                 ubuf.append("&amp;tr=").append(tr);
             if (type != null)
                 ubuf.append("&amp;type=").append(type);
+            if (etype != null)
+                ubuf.append("&amp;etype=").append(etype);
             if (ip != null)
                 ubuf.append("&amp;ip=").append(ip);
             if (port != 0)
@@ -220,7 +222,8 @@ class NetDbRenderer {
                     // 'O' will catch PO and XO also
                     (caps != null && hasCap(ri, caps)) ||
                     (tr != null && ri.getTargetAddress(tr) != null) ||
-                    (type != null && type == ri.getIdentity().getSigType())) {
+                    (type != null && type == ri.getIdentity().getSigType()) ||
+                    (etype != null && etype == ri.getIdentity().getEncType())) {
                     if (skipped < toSkip) {
                         skipped++;
                         continue;
@@ -516,7 +519,7 @@ class NetDbRenderer {
                 buf.append("<b>").append(_t("Destination")).append(":</b> ");
                 TunnelPoolSettings in = _context.tunnelManager().getInboundSettings(key);
                 if (in != null && in.getDestinationNickname() != null)
-                    buf.append(in.getDestinationNickname());
+                    buf.append(DataHelper.escapeHTML(in.getDestinationNickname()));
                 else
                     buf.append(dest.toBase64().substring(0, 6));
                 buf.append("</th></tr>\n");
