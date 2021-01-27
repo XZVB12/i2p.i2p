@@ -1,4 +1,46 @@
+2021-01-20 zzz
+ * Console: Fix link to UPnP status
+ * SSU: Fix deadlock with router restart
+
+2021-01-14 zzz
+ * Router:
+   - Change default encryption type to ECIES-X25519 (proposal 156)
+   - Move Sybil subsystem from console to router
+   - Limit max addresses in RI
+
+2021-01-13 zzz
+ * Jetty: Fix URI in request logs
+
+2021-01-12 zzz
+ * i2psnark: Don't decrement downloaded counter after receiving bad piece
+
+2021-01-11 zzz
+ * Console: Delete rrd files for no-longer-configured stats at startup
+
+2021-01-08 zzz
+ * i2ptunnel: Disable shared clients (DSA) (part 2)
+ * SSU: Fix bandwidth estimator deadlock (ticket #2798)
+
+2021-01-07 zzz
+ * Router: Disable reseeding and NTP in vmCommSystem
+ * SSU: Implement fast retransmit (ticket #2427)
+
+2021-01-05 zzz
+ * Console: Reduce limit of concurrent graph generation on slow devices
+ * i2psnark: Add ability to remove I2CP options
+ * SusiDNS: Hide last-modified on details page if empty
+
+2021-01-04 zzz
+ * Build:
+   - Gradle build fixes
+   - Update external javadoc links
+
+2021-01-02 zzz
+ * Sybil: Reduce default threshold
+ * Tunnels: Improve error handling at OBEP
+
 2020-12-31 zzz
+ * Console: Use local time on graphs by default
  * NetDB:
    - Drop lookups with replies going to us
    - Extend lookup expire time

@@ -32,7 +32,7 @@
 <html>
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-<title>${book.book} <%=intl._t("addressbook")%> - susidns</title>
+<title>${book.book} <%=intl._t("address book")%> - susidns</title>
 <link rel="stylesheet" type="text/css" href="<%=book.getTheme()%>susidns.css?<%=net.i2p.CoreVersion.VERSION%>">
 <script src="js/messages.js?<%=net.i2p.CoreVersion.VERSION%>" type="text/javascript"></script>
 </head>
@@ -133,11 +133,18 @@
 <td><%=intl._t("Added Date")%></td>
 <td><%=addr.getAdded()%></td>
 </tr>
+<%
+       String lastmod = addr.getModded();
+       if (lastmod.length() > 0) {
+%>
 <tr class="list${book.trClass}">
 <td><%=intl._t("Last Modified")%></td>
-<td><%=addr.getModded()%></td>
+<td><%=lastmod%></td>
 </tr>
-<% }  // showNotes  %>
+<%
+       }  // lastmod
+   }  // showNotes
+%>
 <tr class="list${book.trClass}">
 <td><%=intl._t("Destination")%></td>
 <td class="destinations"><div class="destaddress" tabindex="0"><%=addr.getDestination()%></div></td>

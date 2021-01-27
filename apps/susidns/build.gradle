@@ -6,6 +6,7 @@ sourceSets {
     main {
         java {
             srcDir 'src/java/src'
+            srcDir 'src/build/messages-src'
         }
     }
 }
@@ -15,8 +16,30 @@ dependencies {
     providedCompile project(':apps:jetty')
 }
 
+// Create the java files from the po files. The jar task will compile them.
+// This requires gettext 0.19 or higher.
+// We don't support the "slow way"
+task bundle {
+    doLast {
+        if (!(new File("$buildDir/classes/java/main/i2p/susi/dns/messages_de.class")).exists())
+            println "apps/susidns/src/bundle-messages.sh".execute().text
+    }
+}
+war.dependsOn bundle
+
 war {
     from 'src/jsp'
     from 'src/index.html'
+    from ('src/js', {
+        into "js"
+    })
+    from ('src/svg', {
+        into "svg"
+    })
+    from ('src/themes', {
+        into "themes"
+    })
+    exclude '*.jsi'
+    exclude '*.jsp'
     webXml = file('src/WEB-INF/web-template.xml')
 }

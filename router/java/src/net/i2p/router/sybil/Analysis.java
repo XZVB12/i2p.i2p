@@ -33,7 +33,6 @@ import net.i2p.router.peermanager.DBHistory;
 import net.i2p.router.peermanager.PeerProfile;
 import net.i2p.router.tunnel.pool.TunnelPool;
 import net.i2p.router.util.HashDistance;
-import net.i2p.router.web.Messages;
 import net.i2p.stat.Rate;
 import net.i2p.stat.RateAverages;
 import net.i2p.stat.RateStat;
@@ -41,6 +40,7 @@ import net.i2p.util.Addresses;
 import net.i2p.util.Log;
 import net.i2p.util.ObjectCounter;
 import net.i2p.util.SystemVersion;
+import net.i2p.util.Translate;
 
 /**
  *
@@ -94,9 +94,10 @@ public class Analysis extends JobImpl implements RouterApp {
     private static final double POINTS_NEW = 4.0;
     private static final double POINTS_BANLIST = 25.0;
     public static final boolean DEFAULT_BLOCK = true;
-    public static final double DEFAULT_BLOCK_THRESHOLD = 75.0;
+    public static final double DEFAULT_BLOCK_THRESHOLD = 50.0;
     public static final long DEFAULT_BLOCK_TIME = 7*24*60*60*1000L;
-    public static final long DEFAULT_REMOVE_TIME = 30*24*60*60*1000L;
+    public static final long DEFAULT_REMOVE_TIME = 10*24*60*60*1000L;
+    public static final long SHORT_REMOVE_TIME = 2*24*60*60*1000L;
     public static final long DEFAULT_FREQUENCY = 24*60*60*1000L;
     public static final float MIN_BLOCK_POINTS = 12.01f;
 
@@ -843,8 +844,10 @@ public class Analysis extends JobImpl implements RouterApp {
         return Util.biLog2(a);
     }
 
+    private static final String BUNDLE_NAME = "net.i2p.router.web.messages";
+
     private String _t(String s) {
-        return Messages.getString(s, _context);
+        return Translate.getString(s, _context, BUNDLE_NAME);
     }
 
     /**
@@ -860,6 +863,6 @@ public class Analysis extends JobImpl implements RouterApp {
      *    Use autoboxing to call with ints, longs, floats, etc.
      */
     private String _t(String s, Object o) {
-        return Messages.getString(s, o, _context);
+        return Translate.getString(s, o, _context, BUNDLE_NAME);
     }
 }

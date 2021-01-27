@@ -5,16 +5,7 @@
 body {
      color: #31334f;
      font: 9pt "Droid Sans", "Noto Sans", Ubuntu, "Segoe UI", "Bitstream Vera Sans", Verdana, "Lucida Grande", Helvetica, sans-serif;
-     background: linear-gradient(135deg, #9dabd5 0%,#265ea7 53%,#222187 76%,#323638 100%);
-     background: -webkit-linear-gradient(-45deg, #9dabd5 0%,#265ea7 53%,#222187 76%,#323638 100%);
-
      margin: 3px 4px;
-}
-
-/* preload top navigation mouseovers */
-body {
-  background: linear-gradient(135deg, #9dabd5 0%,#265ea7 53%,#222187 76%,#323638 100%);
-  background: -webkit-linear-gradient(-45deg, #9dabd5 0%,#265ea7 53%,#222187 76%,#323638 100%);
 }
 
 @supports (text-justify: auto) { /* only Firefox 55 or newer */
@@ -2597,6 +2588,7 @@ input[type="submit"] {
      font-size: 12pt !important;
      padding: 4px 1px 3px !important;
      min-width: 300px;
+     border-radius: 0px 0px 6px 6px;
 }
 
 .snarkTorrentStatus b {
@@ -2633,6 +2625,7 @@ input[type="submit"] {
 .snarkConfigTitle a {
      font-size: 12.5pt !important;
      margin-top: 0 !important;
+     border-radius: 0px 0px 6px 6px;
 }
 }
 

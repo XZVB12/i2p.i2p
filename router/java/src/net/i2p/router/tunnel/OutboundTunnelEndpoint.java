@@ -32,17 +32,26 @@ class OutboundTunnelEndpoint {
 
     public void dispatch(TunnelDataMessage msg, Hash recvFrom) {
         _config.incrementProcessedMessages();
-        boolean ok = _processor.process(msg.getData(), 0, msg.getData().length, recvFrom);
+        byte[] data = msg.getData();
+        boolean ok = _processor.process(data, 0, data.length, recvFrom);
         if (!ok) {
             // invalid IV
             // If we pass it on to the handler, it will fail
             // If we don't, the data buf won't get released from the cache... that's ok
             if (_log.shouldLog(Log.WARN))
                 _log.warn("Invalid IV, dropping at OBEP " + _config);
-            _context.statManager().addRateData("tunnel.corruptMessage", 1, 1);
             return;
         }
-        _handler.receiveTunnelMessage(msg.getData(), 0, msg.getData().length);
+        ok = _handler.receiveTunnelMessage(data, 0, data.length);
+        if (!ok) {
+            // blame previous hop
+            Hash h = _config.getReceiveFrom();
+            if (h != null) {
+                if (_log.shouldLog(Log.WARN))
+                    _log.warn(toString() + ": Blaming " + h + " 50%");
+                _context.profileManager().tunnelFailed(h, 50);
+            }
+        }
     }
     
     private class DefragmentedHandler implements FragmentHandler.DefragmentedReceiver {

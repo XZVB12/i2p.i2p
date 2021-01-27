@@ -6,6 +6,7 @@ sourceSets {
     main {
         java {
             srcDir 'java/src'
+            srcDir 'java/build/messages-src'
         }
     }
     test {
@@ -26,6 +27,17 @@ dependencies {
     testImplementation project(path: ':core', configuration: 'tests')
 }
 
+// Create the java files from the po files. The jar task will compile them.
+// This requires gettext 0.19 or higher.
+// We don't support the "slow way"
+task bundle {
+    doLast {
+        if (!(new File("$buildDir/classes/java/main/net/i2p/router/util/messages_de.class")).exists())
+            println "router/java/bundle-messages.sh".execute().text
+    }
+}
+jar.dependsOn bundle
+
 jar {
     manifest {
         attributes 'Specification-Title': 'I2P Router'
@@ -34,4 +46,7 @@ jar {
         // so people with very old wrapper.config files will still work with Jetty 6
         attributes 'Class-Path': 'jetty-i2p.jar jetty-java5-threadpool.jar jetty-rewrite-handler.jar jetty-sslengine.jar jetty-start.jar jetty-util.jar'
     }
+    from ('resources', {
+        into "net/i2p/router/util/resources"
+    })
 }

@@ -343,7 +343,7 @@ class SummaryBarRenderer {
         StringBuilder rbuf = new StringBuilder(128);
         PortMapper pm = _context.portMapper();
         if (pm.isRegistered(PortMapper.SVC_SUSIDNS)) {
-            String tx = _t("Addressbook");
+            String tx = _t("Address Book");
             rbuf.append("<a href=\"/dns\" target=\"_top\" title=\"")
                 .append(_t("Manage your I2P hosts file here (I2P domain name resolution)"))
                 .append("\">")
@@ -527,15 +527,6 @@ class SummaryBarRenderer {
         rbuf.append("<a title=\"")
            .append(_t("Network database search tool"))
            .append("\" href=\"/netdb?f=4\" target=\"_top\">")
-           .append(nbsp(tx))
-           .append("</a>\n");
-        svcs.put(tx, rbuf.toString());
-
-        tx = _t("Proof");
-        rbuf.setLength(0);
-        rbuf.append("<a title=\"")
-           .append(_t("Signed proof of ownership of this router"))
-           .append("\" href=\"/proof\" target=\"_top\">")
            .append(nbsp(tx))
            .append("</a>\n");
         svcs.put(tx, rbuf.toString());
