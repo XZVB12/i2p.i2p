@@ -40,7 +40,7 @@
 </p>
 <p>
   <%=intl._t("Also, <b>do not enter a private IP address</b> like 127.0.0.1 or 192.168.1.1.")%>&nbsp;
-  <%=intl._t("If you specify the wrong IP address or hostname, or do not properly configure your NAT or firewall, your network performance will degrade substantially.")%>&nbsp;
+  <%=intl._t("If you specify the wrong IP address, or do not properly configure your NAT or firewall, your network performance will degrade substantially.")%>&nbsp;
   <%=intl._t("When in doubt, leave the settings at the defaults.")%>&nbsp;
 </p>
   </td>
@@ -59,7 +59,7 @@
  </tr>
  <tr>
   <td>
- <b class="suboption"><%=intl._t("Externally reachable hostname or IP address")%>:</b><br>
+ <b class="suboption"><%=intl._t("Externally reachable IP address")%>:</b><br>
     <label><input type="radio" class="optbox" name="udpAutoIP" value="local,upnp,ssu" <%=nethelper.getUdpAutoIPChecked(3) %> >
     <%=intl._t("Use all auto-detect methods")%></label><br>
     <label><input type="radio" class="optbox" name="udpAutoIP" value="local,ssu" <%=nethelper.getUdpAutoIPChecked(4) %> >
@@ -137,7 +137,7 @@
  </tr>
  <tr>
   <td>
- <b class="suboption"><%=intl._t("Externally reachable hostname or IP address")%>:</b><br>
+ <b class="suboption"><%=intl._t("Externally reachable IP address")%>:</b><br>
     <label><input type="radio" class="optbox" name="ntcpAutoIP" value="true" <%=nethelper.getTcpAutoIPChecked(2) %> >
     <%=intl._t("Use auto-detected IP address")%>
     <i>(<%=intl._t("currently")%> <jsp:getProperty name="nethelper" property="udpIP" />)</i>

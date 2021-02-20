@@ -178,7 +178,7 @@ public class ConfigNetHandler extends FormHandler {
             String oldUdp = _context.getProperty(UDPTransport.PROP_SOURCES,
                                                  _context.router().isHidden() ? "hidden" : UDPTransport.DEFAULT_SOURCES);
             String oldUHost = _context.getProperty(UDPTransport.PROP_EXTERNAL_HOST, "");
-            // force change to fixed if user enters a host name/IP
+            // force change to fixed if user enters a hostname/IP
             if (_udpHost1 != null && _udpHost1.length() > 0)
                 _udpAutoIP = "fixed";
             if (_udpAutoIP != null) {
@@ -466,7 +466,7 @@ public class ConfigNetHandler extends FormHandler {
         // TODO set IPv6 arg based on configuration?
         boolean rv = TransportUtil.isPubliclyRoutable(iab, true);
         if (!rv)
-            addFormError(_t("The hostname or IP {0} is not publicly routable", addr));
+            addFormError(_t("The address {0} is not publicly routable", addr));
         return rv;
     }
 

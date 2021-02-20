@@ -1,6 +1,63 @@
+2021-02-18 zzz
+ * Build: Remove empty jars and wars from installers
+ * NTP: Year 2036 fixes (gitlab ticket #12)
+
+* 2021-02-17 0.9.49 released
+
+2021-02-15 zzz
+ * Build: Test script fixes
+ * Pull translations from Transifex
+
+2021-02-13 zzz
+ * Util: Update router su3 keys
+
+2021-02-10 zzz
+ * Util: Fix up KeyStoreUtil CLI
+
+2021-02-06 zzz
+ * Proxy: Update default jump servers
+ * NetDB:
+   - Ensure RI is published after netdb is initialized
+   - Only rewrite blind cache at shutdown if changed
+ * NTCP: Don't publish saved local address when hidden
+
+2021-02-05 zzz
+ * GeoIP update
+
+2021-02-03 zzz
+ * Tunnels: Peer selection changes
+
+2021-01-31 zzz
+ * Router:
+   - Update list of hidden mode countries
+   - Force hidden mode routers to LU
+   - Don't publish stats in first hour of uptime
+   - Add H.323 to invalid ports list
+   - Improve crashed message in event log
+ * Util: Improved classification of public/local IPv6 addresses
+
+2021-01-30 zzz
+ * UPnP: Fix NPE (android gitlab ticket #1)
+
+2021-01-29 zzz
+ * Tests: Addresses tests
+ * Util: Don't allow empty string as valid IP
+
+2021-01-24 zzz
+ * Tunnels: Update profiles for tunnel peers on corrupt message at endpoint
+
+2021-01-23 zzz
+ * Console: New readme translations
+ * Eepsite: New help translations
+
+2021-01-22 zzz
+ * Build: Drop old Makefile.gcj
+ * Console: Drop old proof page
+
 2021-01-20 zzz
  * Console: Fix link to UPnP status
  * SSU: Fix deadlock with router restart
+ * Tests: ConvertToHash tests
 
 2021-01-14 zzz
  * Router:
@@ -23,7 +80,7 @@
 
 2021-01-07 zzz
  * Router: Disable reseeding and NTP in vmCommSystem
- * SSU: Implement fast retransmit (ticket #2427)
+ * SSU: Implement fast retransmit (tickets #2427, #2668)
 
 2021-01-05 zzz
  * Console: Reduce limit of concurrent graph generation on slow devices

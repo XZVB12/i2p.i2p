@@ -16,9 +16,9 @@ import net.i2p.CoreVersion;
  */
 public class RouterVersion {
     /** deprecated */
-    public final static String ID = "Monotone";
+    public final static String ID = "Git";
     public final static String VERSION = CoreVersion.VERSION;
-    public final static long BUILD = 14;
+    public final static long BUILD = 1;
 
     /** for example "-test" */
     public final static String EXTRA = "";

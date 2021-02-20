@@ -40,7 +40,7 @@ import net.i2p.data.DataHelper;
  * @author zzz
  */
 public abstract class Addresses {
-    
+
     private static final File IF_INET6_FILE = new File("/proc/net/if_inet6");
     private static final long INET6_CACHE_EXPIRE = 10*60*1000;
     private static final boolean INET6_CACHE_ENABLED = !SystemVersion.isMac() && !SystemVersion.isWindows() &&
@@ -122,10 +122,9 @@ public abstract class Addresses {
      *
      *  Warning, very slow on Windows, appx. 200ms + 50ms/interface
      *
-     *  @return a sorted set of all addresses including wildcard
      *  @param includeLocal whether to include local
      *  @param includeIPv6 whether to include IPV6
-     *  @return a Set of all addresses
+     *  @return a sorted set of all addresses including wildcard
      *  @since 0.8.3
      */
     public static SortedSet<String> getAddresses(boolean includeLocal, boolean includeIPv6) {
@@ -141,11 +140,10 @@ public abstract class Addresses {
      *
      *  Warning, very slow on Windows, appx. 200ms + 50ms/interface
      *
-     *  @return a sorted set of all addresses
      *  @param includeSiteLocal whether to include private like 192.168.x.x
      *  @param includeLoopbackAndWildcard whether to include 127.x.x.x and 0.0.0.0
      *  @param includeIPv6 whether to include IPV6
-     *  @return a Set of all addresses
+     *  @return a sorted set of all addresses
      *  @since 0.9.4
      */
     public static SortedSet<String> getAddresses(boolean includeSiteLocal,
@@ -163,12 +161,11 @@ public abstract class Addresses {
      *
      *  Warning, very slow on Windows, appx. 200ms + 50ms/interface
      *
-     *  @return a sorted set of all addresses
      *  @param includeSiteLocal whether to include private like 192.168.x.x
      *  @param includeLoopbackAndWildcard whether to include 127.x.x.x and 0.0.0.0
      *  @param includeIPv6 whether to include IPV6
      *  @param includeIPv6Temporary whether to include IPV6 temporary addresses
-     *  @return a Set of all addresses
+     *  @return a sorted set of all addresses
      *  @since 0.9.46
      */
     public static SortedSet<String> getAddresses(boolean includeSiteLocal,
@@ -264,6 +261,36 @@ public abstract class Addresses {
     }
 
     /**
+     *  Warning, very slow on Windows. Caller should cache.
+     *
+     *  @return the IPv6 address with prefix 02xx: or 03xx:
+     *  @since 0.9.49
+     */
+    public static byte[] getYggdrasilAddress() {
+        if (SystemVersion.isAndroid())
+            return null;
+        try {
+            Enumeration<NetworkInterface> ifcs = NetworkInterface.getNetworkInterfaces();
+            if (ifcs != null) {
+                while (ifcs.hasMoreElements()) {
+                    NetworkInterface ifc = ifcs.nextElement();
+                    if (!ifc.isUp())
+                        continue;
+                    for(Enumeration<InetAddress> addrs =  ifc.getInetAddresses(); addrs.hasMoreElements();) {
+                        InetAddress addr = addrs.nextElement();
+                        byte[] ip = addr.getAddress();
+                        if (ip.length == 16 && (ip[0] & 0xfe) == 0x02)
+                            return ip;
+                    }
+                }
+            }
+        } catch (SocketException e) {
+        } catch (java.lang.Error e) {
+        }
+        return null;
+    }
+
+    /**
      *  Strip the trailing "%nn" from Inet6Address.getHostAddress()
      *  @since IPv6
      */
@@ -276,8 +303,8 @@ public abstract class Addresses {
 
     private static boolean shouldInclude(InetAddress ia, boolean includeSiteLocal,
                                          boolean includeLoopbackAndWildcard, boolean includeIPv6) {
+        byte[] ip = ia.getAddress();
         if (TEST_IPV6_ONLY) {
-            byte[] ip = ia.getAddress();
             if (ip.length == 4) {
                 int i = ip[0] & 0xff;
                 if (i != 127 &&
@@ -297,8 +324,10 @@ public abstract class Addresses {
             (includeSiteLocal ||
              ((!ia.isSiteLocalAddress()) &&
               // disallow fc00::/8 and fd00::/8 (Unique local addresses RFC 4193)
+              // and yggdrasil
               // not recognized as local by InetAddress
-              (ia.getAddress().length != 16 || (ia.getAddress()[0] & 0xfe) != 0xfc))) &&
+              (ip.length != 16 ||
+               ((ip[0] & 0xff) >= 0x20 && (ip[0] & 0xff) <= 0x3f)))) &&
             // Hamachi 5/8 allocated to RIPE (30 November 2010)
             // Removed from TransportImpl.isPubliclyRoutable()
             // Check moved to here, for now, but will eventually need to
@@ -306,7 +335,7 @@ public abstract class Addresses {
             //(includeLocal ||
             //(!ia.getHostAddress().startsWith("5."))) &&
             (includeIPv6 ||
-             (ia instanceof Inet4Address));
+             ip.length == 4);
     }
 
     /**
@@ -343,7 +372,7 @@ public abstract class Addresses {
             return "(bad IP length " + addr.length + "):" + port;
         }
     }
-    
+
     /**
      *  Convenience method to convert and validate a port String
      *  without throwing an exception.
@@ -391,18 +420,24 @@ public abstract class Addresses {
 
     /**
      *  Caching version of InetAddress.getByName(host).getAddress(), which is slow.
-     *  Caches numeric host names only.
-     *  Will resolve but not cache DNS host names.
+     *  Caches numeric addresses only.
+     *  Will resolve but not cache DNS addresses.
      *
      *  Unlike InetAddress.getByName(), we do NOT allow numeric IPs
      *  of the form d.d.d, d.d, or d, as these are almost certainly mistakes.
      *
-     *  @param host DNS or IPv4 or IPv6 host name; if null returns null
+     *  InetAddress.getByName() is documented to return 127.0.0.1 for a null host;
+     *  here we return null.
+     *
+     *  InetAddress.getByName() also returns 127.0.0.1 for a host "",
+     *  but this is undocumented; as of 0.9.49, here we return null.
+     *
+     *  @param host DNS or IPv4 or IPv6 address; if null or empty returns null
      *  @return IP or null
      *  @since 0.9.3
      */
     public static byte[] getIP(String host) {
-        if (host == null)
+        if (host == null || host.isEmpty())
             return null;
         byte[] rv;
         synchronized (_IPAddress) {
@@ -438,7 +473,7 @@ public abstract class Addresses {
     /**
      *  Caching version of InetAddress.getByName(host).getAddress(), which is slow.
      *  Resolves literal IP addresses only, will not cause a DNS lookup.
-     *  Will return null for host names.
+     *  Will return null for hostnames.
      *
      *  Unlike InetAddress.getByName(), we do NOT allow numeric IPs
      *  of the form d.d.d, d.d, or d, as these are almost certainly mistakes.
@@ -471,11 +506,11 @@ public abstract class Addresses {
 
     /**
      *  For literal IP addresses, this is the same as getIP(String).
-     *  For host names, will return the preferred type (IPv4/v6) if available,
+     *  For hostnames, will return the preferred type (IPv4/v6) if available,
      *  else the other type if available.
-     *  Will resolve but not cache DNS host names.
+     *  Will resolve but not cache DNS hostnames.
      *
-     *  @param host DNS or IPv4 or IPv6 host name; if null returns null
+     *  @param host DNS or IPv4 or IPv6 address; if null returns null
      *  @return IP or null
      *  @since 0.9.28
      */
@@ -517,9 +552,9 @@ public abstract class Addresses {
 
     /**
      *  For literal IP addresses, this is the same as getIP(String).
-     *  For host names, may return multiple addresses, both IPv4 and IPv6,
+     *  For hostnames, may return multiple addresses, both IPv4 and IPv6,
      *  even if those addresses are not reachable due to configuration or available interfaces.
-     *  Will resolve but not cache DNS host names.
+     *  Will resolve but not cache DNS hostnames.
      *
      *  Note that order of returned results, and whether
      *  multiple results for either IPv4 or IPv6 or both are actually
@@ -528,7 +563,7 @@ public abstract class Addresses {
      *  Number of results may also change based on caching at various layers,
      *  even if the ultimate name server results did not change.
      *
-     *  @param host DNS or IPv4 or IPv6 host name; if null returns null
+     *  @param host DNS or IPv4 or IPv6 address; if null returns null
      *  @return non-empty list IPs, or null if none
      *  @since 0.9.28
      */
@@ -784,6 +819,11 @@ public abstract class Addresses {
         System.out.println("\nAll External Addresses:");
         a = getAddresses(false, false, true);
         print(a);
+        byte[] ygg = getYggdrasilAddress();
+        if (ygg != null) {
+            System.out.println("\nYggdrasil Address:");
+            System.out.println(toString(ygg));
+        }
         System.out.println("\nAll External and Local Addresses:");
         a = getAddresses(true, false, true);
         print(a);

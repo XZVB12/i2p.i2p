@@ -140,6 +140,7 @@ public class SnarkManager implements CompleteListener, ClientApp {
     public static final String RC_PROP_UNIVERSAL_THEMING = "routerconsole.universal.theme";
     public static final String PROP_THEME = "i2psnark.theme";
     public static final String DEFAULT_THEME = "ubergine";
+    private static final String[] THEMES = new String[] { "dark", "light", "ubergine", "vanilla" };
     /** From CSSHelper */
     private static final String PROP_DISABLE_OLD = "routerconsole.disableOldThemes";
     private static final boolean DEFAULT_DISABLE_OLD = true;
@@ -174,8 +175,8 @@ public class SnarkManager implements CompleteListener, ClientApp {
      *  "name", "announceURL=websiteURL" pairs
      *  '=' in announceURL must be escaped as &#44;
      *
-     *  Please use host name, not b32 or full dest, in announce URL. Ensure in default hosts.txt.
-     *  Please use host name, not b32 or full dest, in website URL. Ensure in default hosts.txt.
+     *  Please use hostname, not b32 or full dest, in announce URL. Ensure in default hosts.txt.
+     *  Please use hostname, not b32 or full dest, in website URL. Ensure in default hosts.txt.
      */
     private static final String DEFAULT_TRACKERS[] = { 
 //       "Postman", "http://YRgrgTLGnbTq2aZOZDJQ~o6Uk5k6TK-OZtx0St9pb0G-5EGYURZioxqYG8AQt~LgyyI~NCj6aYWpPO-150RcEvsfgXLR~CxkkZcVpgt6pns8SRc3Bi-QSAkXpJtloapRGcQfzTtwllokbdC-aMGpeDOjYLd8b5V9Im8wdCHYy7LRFxhEtGb~RL55DA8aYOgEXcTpr6RPPywbV~Qf3q5UK55el6Kex-6VCxreUnPEe4hmTAbqZNR7Fm0hpCiHKGoToRcygafpFqDw5frLXToYiqs9d4liyVB-BcOb0ihORbo0nS3CLmAwZGvdAP8BZ7cIYE3Z9IU9D1G8JCMxWarfKX1pix~6pIA-sp1gKlL1HhYhPMxwyxvuSqx34o3BqU7vdTYwWiLpGM~zU1~j9rHL7x60pVuYaXcFQDR4-QVy26b6Pt6BlAZoFmHhPcAuWfu-SFhjyZYsqzmEmHeYdAwa~HojSbofg0TMUgESRXMw6YThK1KXWeeJVeztGTz25sL8AAAA.i2p/announce.php=http://tracker.postman.i2p/"
@@ -212,7 +213,7 @@ public class SnarkManager implements CompleteListener, ClientApp {
 
     public static final Set<String> DEFAULT_TRACKER_ANNOUNCES;
 
-    /** host names for config form */
+    /** hostnames for config form */
     static final Set<String> KNOWN_OPENTRACKERS = new HashSet<String>(Arrays.asList(new String[] {
         "tracker.welterde.i2p", "cfmqlafjfmgkzbt4r3jsfyhgsr5abgxryl6fnz3d3y5a365di5aa.b32.i2p",
         "opentracker.dg2.i2p", "w7tpbzncbcocrqtwwm3nezhnnsw4ozadvi2hmvzdhrqzfxfum7wa.b32.i2p",
@@ -913,29 +914,8 @@ public class SnarkManager implements CompleteListener, ClientApp {
      * Get all themes
      * @return String[] -- Array of all the themes found, non-null, unsorted
      */
-    public String[] getThemes() {
-         String[] themes;
-         if (_context.isRouterContext()) {
-            File dir = new File(_context.getBaseDir(), "docs/themes/snark");
-            FileFilter fileFilter = new FileFilter() { public boolean accept(File file) { return file.isDirectory(); } };
-            File[] dirnames = dir.listFiles(fileFilter);
-            if (dirnames != null) {
-                List<String> th = new ArrayList<String>(dirnames.length);
-                boolean skipOld = _context.getProperty(PROP_DISABLE_OLD, DEFAULT_DISABLE_OLD);
-                for (int i = 0; i < dirnames.length; i++) {
-                    String name = dirnames[i].getName();
-                    if (skipOld && (name.equals("midnight") || name.equals("classic")))
-                        continue;
-                    th.add(name);
-                }
-                themes = th.toArray(new String[th.size()]);
-            } else {
-                themes = new String[0];
-            }
-        } else {
-            themes = new String[] { "dark", "light", "ubergine", "vanilla" };
-        }
-        return themes;
+    public static String[] getThemes() {
+        return THEMES;
     }
 
 
