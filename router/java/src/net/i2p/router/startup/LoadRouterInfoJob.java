@@ -45,7 +45,7 @@ class LoadRouterInfoJob extends JobImpl {
     private RouterInfo _us;
     private static final AtomicBoolean _keyLengthChecked = new AtomicBoolean();
     // 1 chance in this many to rekey if the defaults changed
-    private static final int REKEY_PROBABILITY = 128;
+    private static final int REKEY_PROBABILITY = 16;
     
     public LoadRouterInfoJob(RouterContext ctx) {
         super(ctx);
@@ -193,11 +193,13 @@ class LoadRouterInfoJob extends JobImpl {
     }
 
     /**
-     *  Does our RI private key length match the configuration?
+     *  Does our RI ElGamal private key length match the configuration?
      *  If not, return true.
      *  @since 0.9.8
      */
     private boolean shouldRebuild(PrivateKey privkey) {
+        if (privkey.getType() != EncType.ELGAMAL_2048)
+            return false;
         // Prevent returning true more than once, ever.
         // If we are called a second time, it's probably because we failed
         // to delete router.keys for some reason.

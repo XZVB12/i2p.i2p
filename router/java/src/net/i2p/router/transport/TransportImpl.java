@@ -46,6 +46,7 @@ import net.i2p.util.Log;
 import net.i2p.util.SimpleTimer;
 import net.i2p.util.SystemVersion;
 import net.i2p.util.Translate;
+import net.i2p.util.VersionComparator;
 
 /**
  * Defines a way to send a message to another peer and start listening for messages
@@ -70,6 +71,17 @@ public abstract class TransportImpl implements Transport {
     private static final long UNREACHABLE_PERIOD = 5*60*1000;
     private static final long WAS_UNREACHABLE_PERIOD = 30*60*1000;
 
+    /** @since 0.9.50 */
+    protected static final String PROP_TRANSPORT_CAPS = "i2np.transportCaps";
+    /** @since 0.9.50 */
+    protected static final boolean ENABLE_TRANSPORT_CAPS = true;
+    /** @since 0.9.50 */
+    public static final String CAP_IPV4 = "4";
+    /** @since 0.9.50 */
+    public static final String CAP_IPV6 = "6";
+    /** @since 0.9.50 */
+    public static final String CAP_IPV4_IPV6 = CAP_IPV4 + CAP_IPV6;
+
     /** @since 0.9.44 */
     protected static final String PROP_IPV6_FIREWALLED = "i2np.lastIPv6Firewalled";
 
@@ -81,6 +93,11 @@ public abstract class TransportImpl implements Transport {
         int size = (int) Math.max(min, Math.min(max, 1 + (maxMemory / (128*1024))));
         _IPMap = new LHMCache<Hash, byte[]>(size);
     }
+
+    /** 50/100/150/250/450/550/700 for BW Tiers K/L/M/N/O/P/X */
+    private static final int MAX_CONNECTION_FACTOR = 50;
+    // see constructor
+    private final boolean REBALANCE_NTCP;
 
     /**
      * Initialize the new transport
@@ -108,6 +125,12 @@ public abstract class TransportImpl implements Transport {
         _wasUnreachableEntries = new ConcurrentHashMap<Hash, Long>(32);
         _localAddresses = new ConcurrentHashSet<InetAddress>(4);
         _context.simpleTimer2().addPeriodicEvent(new CleanupUnreachable(), 2 * UNREACHABLE_PERIOD, UNREACHABLE_PERIOD / 2);
+        // if the router is slow, or we have the i2prouter script on linux that bumps the ulimit,
+        // allow more NTCP2 and less SSU. See getMaxConnections() below.
+        String installed = _context.getProperty("router.firstVersion");
+        REBALANCE_NTCP = SystemVersion.isSlow() ||
+                         (!SystemVersion.isMac() && !SystemVersion.isWindows() &&
+                          SystemVersion.hasWrapper() && installed != null && VersionComparator.comp(installed, "0.9.33") >= 0);
     }
 
     /**
@@ -127,9 +150,6 @@ public abstract class TransportImpl implements Transport {
      *  Unused for anything, to be removed.
      */
     public abstract int countActiveSendPeers();
-
-    /** ...and 50/100/150/200/250 for BW Tiers K/L/M/N/O */
-    private static final int MAX_CONNECTION_FACTOR = 50;
 
     /** Per-transport connection limit */
     public int getMaxConnections() {
@@ -179,9 +199,19 @@ public abstract class TransportImpl implements Transport {
             def *= 17; def /= 10;
         }
         // increase limit for SSU, for now
-        if (style.equals("SSU"))
-            //def = def * 3 / 2;
-            def *= 3;
+        if (style.equals("SSU")) {
+            if (REBALANCE_NTCP) {
+                def *= 5; def /= 2;
+            } else {
+                def *= 3;
+            }
+        } else if (style.equals("NTCP")) {
+            if (REBALANCE_NTCP) {
+                def *= 3; def /= 2;
+                if (def > 1500)
+                    def = 1500;
+            }
+        }
         return _context.getProperty(maxProp, def);
     }
 
@@ -660,9 +690,9 @@ public abstract class TransportImpl implements Transport {
      *  shuffled and then sorted by cost/preference.
      *  Lowest cost (most preferred) first.
      *  @return non-null, possibly empty
-     *  @since IPv6
+     *  @since IPv6, public since 0.9.50, was protected
      */
-    protected List<RouterAddress> getTargetAddresses(RouterInfo target) {
+    public List<RouterAddress> getTargetAddresses(RouterInfo target) {
         List<RouterAddress> rv;
         String alt = getAltStyle();
         if (alt != null)

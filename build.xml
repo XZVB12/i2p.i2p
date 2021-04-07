@@ -31,8 +31,6 @@
         <echo message="  installer-windows: build the GUI installer (Windows only)" />
         <echo message="  installer-nowindows: build the GUI installer (all but Windows)" />
         <echo message="  installer5, installer5-linux, installer5-nowindows, installer5-windows: use IzPack 5" />
-        <echo message="  osxLauncher: build the Mac OS X router/GUI launcher (OSX only)" />
-        <echo message="  bbLauncher: build the Browser Bundle router launcher" />
         <echo message="  bundle:    (GIT ONLY!) generate a git bundle and a corresponding torrent." />
         <echo message="  tarball:   tar the full install into i2p.tar.bz2 (extracts to build a new clean install)" />
         <echo message="  git-bundle:    (GIT ONLY!) generate a git bundle and a corresponding torrent." />
@@ -311,28 +309,6 @@
             <arg value="+%s" />
         </exec>
         <echo message="Epoch is: ${epoch}" />
-    </target>
-
-    <target name="bbLauncher" depends="build">
-        <sequential>
-            <exec executable="./sbt" dir="launchers" failonerror="true">
-                <arg value="browserbundle:clean" />
-            </exec>
-            <exec executable="./sbt" dir="launchers" failonerror="true">
-                <arg value="browserbundle:assembly" />
-            </exec>
-        </sequential>
-    </target>
-
-    <target name="osxLauncher" depends="build,preppkg-osx">
-        <sequential>
-            <exec executable="./sbt" dir="launchers" failonerror="true">
-                <arg value="macosx:cleanAllTask" />
-            </exec>
-            <exec executable="./sbt" dir="launchers" failonerror="true">
-                <arg value="macosx:buildAppBundleTask" />
-            </exec>
-        </sequential>
     </target>
 
     <target name="buildBOB" depends="buildMinistreaming" >
@@ -1085,6 +1061,7 @@
         <echo message="Warning, javadoc embeds timestamps in the output, run with 'TZ=UTC ant javadoc' if you plan to distribute" />
     </target>
 
+    <!-- sets release.number and api.version -->
     <target name="getReleaseNumber">
         <loadfile srcfile="core/java/src/net/i2p/CoreVersion.java" property="release.number">
             <filterchain>
@@ -1098,8 +1075,41 @@
                 <trim/>
             </filterchain>
         </loadfile>
+        <loadfile srcfile="core/java/src/net/i2p/CoreVersion.java" property="api.version">
+            <filterchain>
+                <linecontains>
+                    <contains value="public final static String PUBLISHED_VERSION"/>
+                </linecontains>
+                <tokenfilter>
+                    <replaceregex pattern='.*"([^"]+)";' replace="\1" flags="gi" />
+                </tokenfilter>
+                <striplinebreaks/>
+                <trim/>
+            </filterchain>
+        </loadfile>
         <property name="release.number" value="unknown" />
-        <echo message="Release number is ${release.number}" />
+        <property name="api.version" value="unknown" />
+        <echo message="Release number: ${release.number}" />
+        <echo message="API version:    ${api.version}" />
+        <fail message="Bad API version, must start with 0.9." >
+            <condition>
+                <not>
+                    <matches pattern="^0\.9\." string="${api.version}" />
+                </not>
+            </condition>
+        </fail>
+        <fail message="Release number / API version mismatch" >
+            <condition>
+                <and>
+                    <not>
+                        <equals arg1="${release.number}" arg2="${api.version}"/>
+                    </not>
+                    <not>
+                        <matches pattern="^1\." string="${release.number}" />
+                    </not>
+                </and>
+            </condition>
+        </fail>
     </target>
 
     <target name="getBuildNumber">
@@ -2770,7 +2780,6 @@
             <fileset dir="../i2p-${Extended.Version}/" includes="Docker*" />
             <file name="../i2p-${Extended.Version}/Makefile.gcj" />
             <fileset dir="../i2p-${Extended.Version}/docs" />
-            <fileset dir="../i2p-${Extended.Version}/launchers" />
             <file name="../i2p-${Extended.Version}/.travis.yml" />
             <file name="../i2p-${Extended.Version}/.gitignore" />
             <!-- gradle files -->
@@ -2847,7 +2856,6 @@
             <fileset dir="../i2p-${Extended.Version}/" includes="Docker*" />
             <file name="../i2p-${Extended.Version}/Makefile.gcj" />
             <fileset dir="../i2p-${Extended.Version}/docs" />
-            <fileset dir="../i2p-${Extended.Version}/launchers" />
             <file name="../i2p-${Extended.Version}/.travis.yml" />
             <file name="../i2p-${Extended.Version}/.gitignore" />
             <!-- gradle files -->
@@ -2927,7 +2935,6 @@
             <fileset dir="../i2p-${Extended.Version}/" includes="Docker*" />
             <file name="../i2p-${Extended.Version}/Makefile.gcj" />
             <fileset dir="../i2p-${Extended.Version}/docs" />
-            <fileset dir="../i2p-${Extended.Version}/launchers" />
             <file name="../i2p-${Extended.Version}/.travis.yml" />
             <file name="../i2p-${Extended.Version}/.gitignore" />
             <!-- gradle files -->
@@ -2994,7 +3001,6 @@
             <fileset dir="../i2p-${Extended.Version}/" includes="Docker*" />
             <file name="../i2p-${Extended.Version}/Makefile.gcj" />
             <fileset dir="../i2p-${Extended.Version}/docs" />
-            <fileset dir="../i2p-${Extended.Version}/launchers" />
             <file name="../i2p-${Extended.Version}/.travis.yml" />
             <file name="../i2p-${Extended.Version}/.gitignore" />
             <!-- gradle files -->

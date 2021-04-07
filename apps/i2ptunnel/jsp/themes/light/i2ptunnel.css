@@ -583,8 +583,19 @@ html body#tunnelEditPage form div.panel table#serverTunnelEdit.tunnelConfig tbod
 }
 
 .tunnelPreview, .tunnelPort {
-     width: 15%;
+     min-width: 15%;
      text-align: center;
+}
+
+.tunnelHostnameCopy {
+    margin-bottom: 1em !important;
+}
+
+.tunnelPreviewHostname {
+    margin-bottom: 1em !important;
+    width: 99%;
+    height: 1.5em;
+    overflow: hidden;
 }
 
 .tunnelLocation, .tunnelInterface {

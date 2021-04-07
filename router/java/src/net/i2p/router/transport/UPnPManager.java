@@ -71,9 +71,10 @@ class UPnPManager {
         _context = context;
         _manager = manager;
         _log = _context.logManager().getLog(UPnPManager.class);
-        // UPnP wants to bind to IPv6 link local interfaces by default, but what UPnP router
-        // is going to want to talk IPv6 anyway? Just make it easy and force IPv4 only
-        org.cybergarage.upnp.UPnP.setEnable(org.cybergarage.upnp.UPnP.USE_ONLY_IPV4_ADDR);
+        // this controls what sockets UPnP listens on
+        // not clear it makes any practical difference though
+        if (!context.getProperty(TransportManager.PROP_ENABLE_UPNP_IPV6, TransportManager.DEFAULT_ENABLE_UPNP_IPV6))
+            org.cybergarage.upnp.UPnP.setEnable(org.cybergarage.upnp.UPnP.USE_ONLY_IPV4_ADDR);
         // set up logging in the UPnP package
         Debug.initialize(context);
         int ssdpPort = _context.getProperty(PROP_SSDP_PORT, DEFAULT_SSDP_PORT);
@@ -189,7 +190,7 @@ class UPnPManager {
             if (_scannerCallback != null)
                 _scannerCallback.beforeScan();
             if (_log.shouldLog(Log.DEBUG))
-                _log.debug("UPnP Rescan");
+                _log.debug("UPnP Rescan", new Exception());
             // TODO default search MX (jitter) is 3 seconds... reduce?
             // See also:
             // Adaptive Jitter Control for UPnP M-Search
@@ -287,7 +288,11 @@ class UPnPManager {
             }
             if (_log.shouldLog(Log.DEBUG))
                 _log.debug("Adding: " + style + " " + port);
-            ForwardPort fp = new ForwardPort(name, false, protocol, port);
+            ForwardPort fp;
+            if (entry.isIPv6)
+                fp = new UPnP.IPv6ForwardPort(name, protocol, port, entry.ip);
+            else
+                fp = new ForwardPort(name, false, protocol, port);
             forwards.add(fp);
         }
         // non-blocking
@@ -352,6 +357,7 @@ class UPnPManager {
                 ForwardPortStatus fps = entry.getValue();
                 if (_log.shouldDebug())
                     _log.debug("FPS: " + fp.name + ' ' + fp.protocol + ' ' + fp.portNumber +
+                               (fp.isIP6 ? " IPv6" : " IPv4") +
                                " status: " + fps.status + " reason: " + fps.reasonString + " ext port: " + fps.externalPort);
                 String style;
                 if (fp.protocol == ForwardPort.PROTOCOL_UDP_IPV4) {
@@ -364,8 +370,18 @@ class UPnPManager {
                     continue;
                 }
                 boolean success = fps.status >= ForwardPortStatus.MAYBE_SUCCESS;
+                byte[] fwdip;
+                if (fp.isIP6) {
+                    UPnP.IPv6ForwardPort v6fp = (UPnP.IPv6ForwardPort) fp;
+                    String sip = v6fp.getIP();
+                    fwdip = Addresses.getIP(sip);
+                    if (fwdip == null)
+                        continue;
+                } else {
+                    fwdip = ipaddr;
+                }
                 // deadlock path 2
-                _manager.forwardPortStatus(style, ipaddr, fp.portNumber, fps.externalPort, success, fps.reasonString);
+                _manager.forwardPortStatus(style, fwdip, fp.portNumber, fps.externalPort, success, fps.reasonString);
             }
         }
     }

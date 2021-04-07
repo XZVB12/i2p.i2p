@@ -122,7 +122,8 @@ public abstract class Addresses {
      *
      *  Warning, very slow on Windows, appx. 200ms + 50ms/interface
      *
-     *  @param includeLocal whether to include local
+     *  @param includeLocal whether to include local addresses
+     *                      and deprecated IPv6 addresses
      *  @param includeIPv6 whether to include IPV6
      *  @return a sorted set of all addresses including wildcard
      *  @since 0.8.3
@@ -141,6 +142,7 @@ public abstract class Addresses {
      *  Warning, very slow on Windows, appx. 200ms + 50ms/interface
      *
      *  @param includeSiteLocal whether to include private like 192.168.x.x
+     *                          and deprecated IPv6 addresses
      *  @param includeLoopbackAndWildcard whether to include 127.x.x.x and 0.0.0.0
      *  @param includeIPv6 whether to include IPV6
      *  @return a sorted set of all addresses
@@ -162,6 +164,7 @@ public abstract class Addresses {
      *  Warning, very slow on Windows, appx. 200ms + 50ms/interface
      *
      *  @param includeSiteLocal whether to include private like 192.168.x.x
+     *                          and deprecated IPv6 addresses
      *  @param includeLoopbackAndWildcard whether to include 127.x.x.x and 0.0.0.0
      *  @param includeIPv6 whether to include IPV6
      *  @param includeIPv6Temporary whether to include IPV6 temporary addresses
@@ -478,12 +481,15 @@ public abstract class Addresses {
      *  Unlike InetAddress.getByName(), we do NOT allow numeric IPs
      *  of the form d.d.d, d.d, or d, as these are almost certainly mistakes.
      *
+     *  InetAddress.getByName() also returns 127.0.0.1 for a host "",
+     *  but this is undocumented; as of 0.9.50, here we return null.
+     *
      *  @param host literal IPv4 or IPv6 address; if null returns null
      *  @return IP or null
      *  @since 0.9.32
      */
     public static byte[] getIPOnly(String host) {
-        if (host == null)
+        if (host == null || host.isEmpty())
             return null;
         byte[] rv;
         synchronized (_IPAddress) {
@@ -492,7 +498,17 @@ public abstract class Addresses {
         if (rv == null) {
             if (isIPAddress(host)) {
                 try {
-                    rv = InetAddress.getByName(host).getAddress();
+                    if (host.contains(".")) {
+                        rv = getIPv4(host);
+                        if (rv == null)
+                            return null;
+                    } else if (host.contains(":") && !host.contains("::")) {
+                        rv = getIPv6(host);
+                        if (rv == null)
+                            return null;
+                    } else {
+                        rv = InetAddress.getByName(host).getAddress();
+                    }
                     synchronized (_IPAddress) {
                         _IPAddress.put(host, rv);
                     }
@@ -510,12 +526,15 @@ public abstract class Addresses {
      *  else the other type if available.
      *  Will resolve but not cache DNS hostnames.
      *
+     *  InetAddress.getByName() also returns 127.0.0.1 for a host "",
+     *  but this is undocumented; as of 0.9.50, here we return null.
+     *
      *  @param host DNS or IPv4 or IPv6 address; if null returns null
      *  @return IP or null
      *  @since 0.9.28
      */
     public static byte[] getIP(String host, boolean preferIPv6) {
-        if (host == null)
+        if (host == null || host.isEmpty())
             return null;
         if (isIPAddress(host))
             return getIP(host);
@@ -563,12 +582,15 @@ public abstract class Addresses {
      *  Number of results may also change based on caching at various layers,
      *  even if the ultimate name server results did not change.
      *
+     *  InetAddress.getByName() also returns 127.0.0.1 for a host "",
+     *  but this is undocumented; as of 0.9.50, here we return null.
+     *
      *  @param host DNS or IPv4 or IPv6 address; if null returns null
      *  @return non-empty list IPs, or null if none
      *  @since 0.9.28
      */
     public static List<byte[]> getIPs(String host) {
-        if (host == null)
+        if (host == null || host.isEmpty())
             return null;
         if (isIPAddress(host)) {
             byte[] brv = getIP(host);
@@ -623,8 +645,57 @@ public abstract class Addresses {
         return InetAddressUtils.isIPv4Address(host) || InetAddressUtils.isIPv6Address(host);
     }
 
+    /**
+     *  Because InetAddress.getByName() is slow, esp. on Windows
+     *
+     *  @param host w.x.y.z only
+     *  @return 4 bytes or null
+     *  @since 0.9.50
+     */
+    private static byte[] getIPv4(String host) {
+        String[] s = DataHelper.split(host, "\\.", 4);
+        if (s.length != 4)
+            return null;
+        byte[] rv = new byte[4];
+        try {
+            for (int i = 0; i < 4; i++) {
+                int b = Integer.parseInt(s[i]);
+                if (b < 0 || b > 255)
+                    return null;
+                rv[i] = (byte) b;
+            }
+        } catch (NumberFormatException nfe) {
+            return null;
+        }
+        return rv;
+    }
 
-
+    /**
+     *  Because InetAddress.getByName() is slow, esp. on Windows
+     *
+     *  @param host full 0:1:2:3:4:5:6:7 only, no ::
+     *  @return 16 bytes or null
+     *  @since 0.9.50
+     */
+    private static byte[] getIPv6(String host) {
+        String[] s = DataHelper.split(host, ":", 8);
+        if (s.length != 8)
+            return null;
+        byte[] rv = new byte[16];
+        try {
+            int j = 0;
+            for (int i = 0; i < 8; i++) {
+                int b = Integer.parseInt(s[i], 16);
+                if (b < 0 || b > 65535)
+                    return null;
+                rv[j++] = (byte) (b >> 8);
+                rv[j++] = (byte) b;
+            }
+        } catch (NumberFormatException nfe) {
+            return null;
+        }
+        return rv;
+    }
 
     //////// IPv6 Cache Utils ///////
 
@@ -816,7 +887,7 @@ public abstract class Addresses {
         System.out.println("\nExternal and Local IPv4 Addresses:");
         a = getAddresses(true, false, false);
         print(a);
-        System.out.println("\nAll External Addresses:");
+        System.out.println("\nAll External Addresses (except deprecated IPv6):");
         a = getAddresses(false, false, true);
         print(a);
         byte[] ygg = getYggdrasilAddress();
@@ -824,7 +895,7 @@ public abstract class Addresses {
             System.out.println("\nYggdrasil Address:");
             System.out.println(toString(ygg));
         }
-        System.out.println("\nAll External and Local Addresses:");
+        System.out.println("\nAll External and Local Addresses (may include deprecated IPv6):");
         a = getAddresses(true, false, true);
         print(a);
         System.out.println("\nAll addresses:");
@@ -878,8 +949,8 @@ public abstract class Addresses {
             macs.add(buf.toString());
         }
         print(macs);
-        System.out.println("\nIs connected? " + isConnected() +
-                           "\nIs conn IPv6? " + isConnectedIPv6());
+        System.out.println("\nHas IPv4?     " + isConnected() +
+                           "\nHas IPv6?     " + isConnectedIPv6());
         System.out.println("Has v6 flags? " + INET6_CACHE_ENABLED);
         System.out.println("Uses v6 temp? " + getPrivacyStatus());
         // Windows 8.1 Java 1.8.0_66 netbook appx. 200ms + 50ms/interface
@@ -898,17 +969,15 @@ public abstract class Addresses {
     }
 
     /**
-     * RFC 4941
-     * @since 0.9.34
+     * @return "true", "false", or "unknown"
+     * @since 0.9.50
      */
-    private static String getPrivacyStatus() {
+    public static String useIPv6TempAddresses() {
         // Windows: netsh interface ipv6 show privacy
         // Mac: sysctl net.inet6.ip6.use_tempaddr (1 is enabled)
         if (SystemVersion.isMac() || SystemVersion.isWindows())
             return "unknown";
         long t = getLong("/proc/sys/net/ipv6/conf/all/use_tempaddr");
-        if (t < 0)
-            return "unknown";
         String rv;
         if (t == 0)
             rv = "false";
@@ -916,7 +985,16 @@ public abstract class Addresses {
             rv = "true";
         else
             rv = "unknown";
-        if (t == 2) {
+        return rv;
+    }
+
+    /**
+     * RFC 4941
+     * @since 0.9.34
+     */
+    private static String getPrivacyStatus() {
+        String rv = useIPv6TempAddresses();
+        if (Boolean.parseBoolean(rv)) {
             long pref = getLong("/proc/sys/net/ipv6/conf/all/temp_prefered_lft");
             if (pref > 0)
                 rv += ", preferred lifetime " + DataHelper.formatDuration(pref * 1000);

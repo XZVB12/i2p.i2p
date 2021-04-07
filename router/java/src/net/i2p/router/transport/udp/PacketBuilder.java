@@ -2,6 +2,7 @@ package net.i2p.router.transport.udp;
 
 import java.net.DatagramPacket;
 import java.net.InetAddress;
+import java.net.Inet6Address;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -16,6 +17,7 @@ import net.i2p.data.Hash;
 import net.i2p.data.router.RouterIdentity;
 import net.i2p.data.SessionKey;
 import net.i2p.data.Signature;
+import net.i2p.data.router.RouterAddress;
 import net.i2p.router.RouterContext;
 import net.i2p.router.transport.TransportUtil;
 import net.i2p.util.Addresses;
@@ -411,8 +413,7 @@ class PacketBuilder {
         if (explicitToSend > 0) {
             if (msg != null)
                 msg.append(explicitToSend).append(" full acks included:");
-            DataHelper.toLong(data, off, 1, explicitToSend);
-            off++;
+            data[off++] = (byte) explicitToSend;
             Iterator<Long> iter = ackIdsRemaining.iterator();
             for (int i = 0; i < explicitToSend && iter.hasNext(); i++) {
                 Long ackId = iter.next();
@@ -471,8 +472,7 @@ class PacketBuilder {
         //if ( (msg != null) && (acksIncluded) )
         //  _log.debug(msg.toString());
         
-        DataHelper.toLong(data, off, 1, numFragments);
-        off++;
+        data[off++] = (byte) numFragments;
         
         // now write each fragment
         int sizeWritten = 0;
@@ -625,8 +625,7 @@ class PacketBuilder {
         off++;
         
         if (fullACKCount > 0) {
-            DataHelper.toLong(data, off, 1, fullACKCount);
-            off++;
+            data[off++] = (byte) fullACKCount;
             for (int i = 0; i < ackBitfields.size(); i++) {
                 ACKBitfield bf = ackBitfields.get(i);
                 if (bf.receivedComplete()) {
@@ -639,8 +638,7 @@ class PacketBuilder {
         }
         
         if (partialACKCount > 0) {
-            DataHelper.toLong(data, off, 1, partialACKCount);
-            off++;
+            data[off++] = (byte) partialACKCount;
             for (int i = 0; i < ackBitfields.size(); i++) {
                 ACKBitfield bitfield = ackBitfields.get(i);
                 if (bitfield.receivedComplete()) continue;
@@ -670,8 +668,7 @@ class PacketBuilder {
             }
         }
         
-        DataHelper.toLong(data, off, 1, 0); // no fragments in this message
-        off++;
+        data[off++] = 0; // no fragments in this message
         
         if (msg != null)
             _log.debug(msg.toString());
@@ -720,8 +717,7 @@ class PacketBuilder {
         // now for the body
         System.arraycopy(state.getSentY(), 0, data, off, state.getSentY().length);
         off += state.getSentY().length;
-        DataHelper.toLong(data, off, 1, sentIP.length);
-        off += 1;
+        data[off++] = (byte) sentIP.length;
         System.arraycopy(sentIP, 0, data, off, sentIP.length);
         off += sentIP.length;
         DataHelper.toLong(data, off, 2, state.getSentPort());
@@ -826,8 +822,7 @@ class PacketBuilder {
         byte[] x = state.getSentX();
         System.arraycopy(x, 0, data, off, x.length);
         off += x.length;
-        DataHelper.toLong(data, off, 1, toIP.length);
-        off += 1;
+        data[off++] = (byte) toIP.length;
         System.arraycopy(toIP, 0, data, off, toIP.length);
         off += toIP.length;
         int port = state.getSentPort();
@@ -1074,8 +1069,7 @@ class PacketBuilder {
         // now for the body
         DataHelper.toLong(data, off, 4, nonce);
         off += 4;
-        DataHelper.toLong(data, off, 1, 0); // neither Bob nor Charlie need Alice's IP from her
-        off++;
+        data[off++] = 0; // neither Bob nor Charlie need Alice's IP from her
         DataHelper.toLong(data, off, 2, 0); // neither Bob nor Charlie need Alice's port from her
         off += 2;
         System.arraycopy(aliceIntroKey.getData(), 0, data, off, SessionKey.KEYSIZE_BYTES);
@@ -1109,8 +1103,7 @@ class PacketBuilder {
         DataHelper.toLong(data, off, 4, nonce);
         off += 4;
         byte ip[] = aliceIP.getAddress();
-        DataHelper.toLong(data, off, 1, ip.length);
-        off++;
+        data[off++] = (byte) ip.length;
         System.arraycopy(ip, 0, data, off, ip.length);
         off += ip.length;
         DataHelper.toLong(data, off, 2, alicePort);
@@ -1147,8 +1140,7 @@ class PacketBuilder {
         DataHelper.toLong(data, off, 4, nonce);
         off += 4;
         byte ip[] = aliceIP.getAddress();
-        DataHelper.toLong(data, off, 1, ip.length);
-        off++;
+        data[off++] = (byte) ip.length;
         System.arraycopy(ip, 0, data, off, ip.length);
         off += ip.length;
         DataHelper.toLong(data, off, 2, alicePort);
@@ -1185,8 +1177,7 @@ class PacketBuilder {
         DataHelper.toLong(data, off, 4, nonce);
         off += 4;
         byte ip[] = aliceIP.getAddress();
-        DataHelper.toLong(data, off, 1, ip.length);
-        off++;
+        data[off++] = (byte) ip.length;
         System.arraycopy(ip, 0, data, off, ip.length);
         off += ip.length;
         DataHelper.toLong(data, off, 2, alicePort);
@@ -1204,12 +1195,6 @@ class PacketBuilder {
         return packet;
     }
 
-    // specify these if we know what our external receive ip/port is and if its different
-    // from what bob is going to think
-    // FIXME IPv4 addr must be specified when sent over IPv6
-    private byte[] getOurExplicitIP() { return null; }
-    private int getOurExplicitPort() { return 0; }
-    
     /**
      *  build intro packets for each of the published introducers
      *
@@ -1229,17 +1214,33 @@ class PacketBuilder {
             long tag = addr.getIntroducerTag(i);
             long exp = addr.getIntroducerExpiration(i);
             // let's not use an introducer on a privileged port, sounds like trouble
-            if (ikey == null ||
-                iaddr == null || tag <= 0 ||
-                // we must use the same isValid() as EstablishmentManager.receiveRelayResponse().
-                // If an introducer isn't valid, we shouldn't send to it
-                !emgr.isValid(iaddr.getAddress(), iport) ||
-                (exp > 0 && exp < cutoff) ||
+            if (iaddr == null) {
+                if (_log.shouldWarn())
+                    _log.warn("Cannot build a relay request for " + state.getRemoteIdentity().calculateHash()
+                               + " slot " + i + " no address");
+                continue;
+            }
+            if (ikey == null || tag <= 0) {
+                if (_log.shouldWarn())
+                    _log.warn("Cannot build a relay request for " + state.getRemoteIdentity().calculateHash()
+                               + " slot " + i + " no key/tag");
+                continue;
+            }
+            if  (exp > 0 && exp < cutoff) {
+                if (_log.shouldWarn())
+                    _log.warn("Cannot build a relay request for " + state.getRemoteIdentity().calculateHash()
+                               + ", expired " + DataHelper.formatTime(exp)
+                               + " : " + Addresses.toString(iaddr.getAddress(), iport));
+                continue;
+            }
+            // we must use the same isValid() as EstablishmentManager.receiveRelayResponse().
+            // If an introducer isn't valid, we shouldn't send to it
+            if (!emgr.isValid(iaddr.getAddress(), iport) ||
                 // FIXME this will have already failed in isValid() above, right?
                 (Arrays.equals(iaddr.getAddress(), _transport.getExternalIP()) && !_transport.allowLocal())) {
-                if (_log.shouldLog(Log.WARN))
+                if (_log.shouldWarn())
                     _log.warn("Cannot build a relay request for " + state.getRemoteIdentity().calculateHash()
-                               + ", as the introducer address is invalid: " + iaddr + ':' + iport);
+                               + ", introducer address is invalid or blocklisted: " + Addresses.toString(iaddr.getAddress(), iport));
                 // TODO implement some sort of introducer banlist
                 continue;
             }
@@ -1266,22 +1267,24 @@ class PacketBuilder {
                 cipherKey = new SessionKey(ikey);
                 macKey = cipherKey;
                 if (_log.shouldLog(Log.INFO))
-                    _log.info("Sending relay request (w/ intro key) to " + iaddr + ":" + iport);
+                    _log.info("Sending relay request (w/ intro key) to " + Addresses.toString(iaddr.getAddress(), iport));
             } else {
                 if (_log.shouldLog(Log.INFO))
-                    _log.info("Sending relay request (in-session) to " + iaddr + ":" + iport);
+                    _log.info("Sending relay request (in-session) to " + Addresses.toString(iaddr.getAddress(), iport));
             }
 
-            rv.add(buildRelayRequest(iaddr, iport, cipherKey, macKey, tag,
-                                     ourIntroKey, state.getIntroNonce()));
+            UDPPacket pkt = buildRelayRequest(iaddr, iport, cipherKey, macKey, tag, ourIntroKey, state.getIntroNonce());
+            if (pkt != null)
+                rv.add(pkt);
+            else if (_log.shouldWarn())
+                _log.warn("Cannot build a relay request for " + state.getRemoteIdentity().calculateHash()
+                          + ", as we don't have an address to send to: " + Addresses.toString(iaddr.getAddress(), iport));
         }
         return rv;
     }
     
     /**
-     *  TODO Alice IP/port in packet will always be null/0, must be fixed to
-     *  send a RelayRequest over IPv6
-     *
+     *  @return null on failure
      */
     private UDPPacket buildRelayRequest(InetAddress introHost, int introPort,
                                         SessionKey cipherKey, SessionKey macKey,
@@ -1291,30 +1294,48 @@ class PacketBuilder {
         byte data[] = pkt.getData();
         int off = HEADER_SIZE;
         
-        // FIXME must specify these if request is going over IPv6
-        byte ourIP[] = getOurExplicitIP();
-        int ourPort = getOurExplicitPort();
+        // Must specify these if request is going over IPv6 for v4 or vice versa
+        byte ourIP[];
+        int ourPort;
+        if (introHost instanceof Inet6Address) {
+            RouterAddress ra = _transport.getCurrentExternalAddress(true);
+            if (ra == null) {
+                ra = _transport.getCurrentExternalAddress(false);
+                if (ra == null)
+                    return null;
+            }
+            byte[] ip = ra.getIP();
+            if (ip == null)
+                return null;
+            if (ip.length != 16) {
+                ourIP = ip;
+                ourPort = _transport.getRequestedPort();
+            } else {
+                ourIP = null;
+                ourPort = 0;
+            }
+        } else {
+            // TODO IPv4 introducer, IPv6 introduction
+            ourIP = null;
+            ourPort = 0;
+        }
         
         // now for the body
         DataHelper.toLong(data, off, 4, introTag);
         off += 4;
         if (ourIP != null) {
-            DataHelper.toLong(data, off, 1, ourIP.length);
-            off++;
+            data[off++] = (byte) ourIP.length;
             System.arraycopy(ourIP, 0, data, off, ourIP.length);
             off += ourIP.length;
         } else {
-            DataHelper.toLong(data, off, 1, 0);
-            off++;
+            data[off++] = 0;
         }
         
         DataHelper.toLong(data, off, 2, ourPort);
         off += 2;
         
         // challenge...
-        DataHelper.toLong(data, off, 1, 0);
-        off++;
-        //off += 0; // *cough*
+        data[off++] = 0;
         
         System.arraycopy(ourIntroKey.getData(), 0, data, off, SessionKey.KEYSIZE_BYTES);
         off += SessionKey.KEYSIZE_BYTES;
@@ -1347,18 +1368,16 @@ class PacketBuilder {
         
         // now for the body
         byte ip[] = alice.getIP();
-        DataHelper.toLong(data, off, 1, ip.length);
-        off++;
+        data[off++] = (byte) ip.length;
         System.arraycopy(ip, 0, data, off, ip.length);
         off += ip.length;
         DataHelper.toLong(data, off, 2, alice.getPort());
         off += 2;
         
         int sz = request.readChallengeSize();
-        DataHelper.toLong(data, off, 1, sz);
-        off++;
+        data[off++] = (byte) sz;
         if (sz > 0) {
-            request.readChallengeSize(data, off);
+            request.readChallengeData(data, off);
             off += sz;
         }
         
@@ -1391,8 +1410,7 @@ class PacketBuilder {
 
         // now for the body
         byte charlieIP[] = charlie.getRemoteIP();
-        DataHelper.toLong(data, off, 1, charlieIP.length);
-        off++;
+        data[off++] = (byte) charlieIP.length;
         System.arraycopy(charlieIP, 0, data, off, charlieIP.length);
         off += charlieIP.length;
         DataHelper.toLong(data, off, 2, charlie.getRemotePort());
@@ -1400,8 +1418,7 @@ class PacketBuilder {
         
         // Alice IP/Port currently ignored on receive - see UDPPacketReader
         byte aliceIP[] = alice.getIP();
-        DataHelper.toLong(data, off, 1, aliceIP.length);
-        off++;
+        data[off++] = (byte) aliceIP.length;
         System.arraycopy(aliceIP, 0, data, off, aliceIP.length);
         off += aliceIP.length;
         DataHelper.toLong(data, off, 2, alice.getPort());

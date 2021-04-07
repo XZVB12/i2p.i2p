@@ -44,7 +44,7 @@ public abstract class SystemVersion {
     private static final boolean _hasWrapper = System.getProperty("wrapper.version") != null;
     private static final boolean _isLinuxService;
     // found in Tanuki WrapperManager source so we don't need the WrapperManager class here
-    private static final boolean _isWindowsService = _isWin && _hasWrapper && Boolean.valueOf(System.getProperty("wrapper.service"));
+    private static final boolean _isWindowsService = _isWin && _hasWrapper && Boolean.parseBoolean(System.getProperty("wrapper.service"));
     private static final boolean _isService;
     private static final boolean _isSlow;
 
@@ -80,7 +80,8 @@ public abstract class SystemVersion {
                           (DAEMON_USER.equals(System.getProperty("user.name")) ||
                            (_isGentoo && GENTOO_USER.equals(System.getProperty("user.name"))));
         _isService = _isLinuxService || _isWindowsService;
-        _isSlow = _isAndroid || _isApache || _isArm || _isGNU || _isZero || getMaxMemory() < 48*1024*1024L;
+        // we assume the Apple M1 is not slow, however isSlow() below will still return true until we have a jbigi
+        _isSlow = _isAndroid || _isApache || (_isArm && !_isMac) || _isGNU || _isZero || getMaxMemory() < 48*1024*1024L;
 
         int sdk = 0;
         if (_isAndroid) {

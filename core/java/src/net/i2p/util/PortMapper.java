@@ -6,6 +6,7 @@ import java.net.InetSocketAddress;
 import java.text.Collator;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -20,6 +21,8 @@ import net.i2p.I2PAppContext;
  */
 public class PortMapper {
     private final ConcurrentHashMap<String, InetSocketAddress> _dir;
+    private final Set<String> _eepsites;
+
     public static final String PROP_PREFER_HTTPS = "routerconsole.preferHTTPS";
 
     public static final String SVC_CONSOLE = "console";
@@ -98,6 +101,7 @@ public class PortMapper {
      */
     public PortMapper(I2PAppContext context) {
         _dir = new ConcurrentHashMap<String, InetSocketAddress>(8);
+        _eepsites = new ConcurrentHashSet<String>(4);
     }
 
     /**
@@ -110,7 +114,10 @@ public class PortMapper {
     }
 
     /**
-     *  Add the service
+     *  Add the service.
+     *  If service is SVC_EEPSITE or SVC_HTTPS_EEPSITE,
+     *  the URL will be included in getEepsites()
+     *
      *  @param port &gt; 0
      *  @return success, false if already registered
      *  @since 0.9.21
@@ -118,7 +125,10 @@ public class PortMapper {
     public boolean register(String service, String host, int port) {
         if (port <= 0 || port > 65535)
             return false;
-        return _dir.putIfAbsent(service, InetSocketAddress.createUnresolved(host, port)) == null;
+        boolean rv = _dir.putIfAbsent(service, InetSocketAddress.createUnresolved(host, port)) == null;
+        if (service.equals(SVC_EEPSITE) || service.equals(SVC_HTTPS_EEPSITE))
+            rv = _eepsites.add(toURL(service, host, port));
+        return rv;
     }
 
     /**
@@ -140,10 +150,19 @@ public class PortMapper {
     /**
      *  Remove the service,
      *  only if it is registered with the supplied port.
+     *  If service is SVC_EEPSITE or SVC_HTTPS_EEPSITE,
+     *  the URL will be removed from getEepsites()
      *
      *  @since 0.9.34
      */
     public void unregister(String service, int port) {
+        if (service.equals(SVC_EEPSITE) || service.equals(SVC_HTTPS_EEPSITE)) {
+            String end = ":" + port + '/';
+            for (Iterator<String> iter = _eepsites.iterator(); iter.hasNext(); ) {
+                 if (iter.next().endsWith(end))
+                     iter.remove();
+            }
+        }
         // not synched
         if (getPort(service) == port)
             _dir.remove(service);
@@ -316,6 +335,34 @@ public class PortMapper {
     }
 
     /**
+     *  @return unsorted, non-empty, or null if none
+     *  @since 0.9.50
+     */
+    public List<String> getEepsiteURLs() {
+        if (_eepsites.isEmpty())
+            return null;
+        return new ArrayList<String>(_eepsites);
+    }
+
+    /**
+     *  @since 0.9.50 from SummaryBarRenderer
+     */
+    private static String toURL(String svc, String host, int port) {
+        StringBuilder buf = new StringBuilder(64);
+        buf.append(svc.equals(SVC_HTTPS_EEPSITE) ? "https://" : "http://");
+        host = convertWildcard(host, "127.0.0.1");
+        if (host.contains(":"))
+            buf.append('[');
+        buf.append(host);
+        if (host.contains(":"))
+            buf.append(']');
+        buf.append(':')
+           .append(port)
+           .append('/');
+        return buf.toString();
+    }
+
+    /**
      *  For debugging only
      *  @since 0.9.20
      */
@@ -328,6 +375,13 @@ public class PortMapper {
             if (ia == null)
                 continue;
             out.write("<tr><td>" + s + "<td>" + convertWildcard(ia.getHostName(), DEFAULT_HOST) + "<td>" + ia.getPort() + '\n');
+        }
+        if (!_eepsites.isEmpty()) {
+            out.write("<tr><td colspan=\"3\">&nbsp;</tr><tr><th>Eepsite<th>URL<th>\n");
+            for (String url : _eepsites) {
+                String s = url.startsWith("https://") ? SVC_HTTPS_EEPSITE : SVC_EEPSITE;
+                out.write("<tr><td>" + s + "<td><a href=\"" + url + "\">" + url + "</a><td>\n");
+            }
         }
         out.write("</table>\n");
     }

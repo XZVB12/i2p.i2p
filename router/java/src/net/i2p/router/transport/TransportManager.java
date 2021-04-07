@@ -30,6 +30,7 @@ import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 
 import net.i2p.crypto.SigType;
+import net.i2p.data.DataHelper;
 import net.i2p.data.Hash;
 import net.i2p.data.router.RouterAddress;
 import net.i2p.data.router.RouterIdentity;
@@ -73,6 +74,7 @@ public class TransportManager implements TransportEventListener {
     private final Map<String, Transport> _pluggableTransports;
     private final RouterContext _context;
     private final UPnPManager _upnpManager;
+    private final SimpleTimer2.TimedEvent _upnpRefresher;
     private final DHSessionKeyBuilder.PrecalcRunner _dhThread;
     private final X25519KeyFactory _xdhThread;
     private final boolean _enableUDP;
@@ -85,21 +87,19 @@ public class TransportManager implements TransportEventListener {
     public final static String PROP_ENABLE_NTCP = "i2np.ntcp.enable";
     /** default true */
     public final static String PROP_ENABLE_UPNP = "i2np.upnp.enable";
+    public final static String PROP_ENABLE_UPNP_IPV6 = "i2np.upnp.ipv6.enable";
+    public static final boolean DEFAULT_ENABLE_UPNP_IPV6 = true;
     private static final String PROP_JAVA_PROXY1 = "socksProxyHost";
     private static final String PROP_JAVA_PROXY2 = "java.net.useSystemProxies";
     private static final String PROP_JAVA_PROXY3 = "http.proxyHost";
     private static final String PROP_JAVA_PROXY4 = "https.proxyHost";
 
-    /** default true */
-    private static final String PROP_NTCP1_ENABLE = "i2np.ntcp1.enable";
-    private static final boolean DEFAULT_NTCP1_ENABLE = false;
-    private static final String PROP_NTCP2_ENABLE = "i2np.ntcp2.enable";
-    private static final boolean DEFAULT_NTCP2_ENABLE = true;
-
     private static final String PROP_ADVANCED = "routerconsole.advanced";
     
     /** not forever, since they may update */
     private static final long SIGTYPE_BANLIST_DURATION = 36*60*60*1000L;
+
+    private static final long UPNP_REFRESH_TIME = UPnP.LEASE_TIME_SECONDS * 1000L / 3;
 
     public TransportManager(RouterContext context) {
         _context = context;
@@ -117,11 +117,10 @@ public class TransportManager implements TransportEventListener {
         boolean isProxied = isProxied();
         boolean enableUPnP = !isProxied && _context.getBooleanPropertyDefaultTrue(PROP_ENABLE_UPNP);
         _upnpManager = enableUPnP ? new UPnPManager(context, this) : null;
+        _upnpRefresher = enableUPnP ? new UPnPRefresher() : null;
         _enableUDP = _context.getBooleanPropertyDefaultTrue(PROP_ENABLE_UDP);
-        _enableNTCP1 = isNTCPEnabled(context) &&
-                       context.getProperty(PROP_NTCP1_ENABLE, DEFAULT_NTCP1_ENABLE);
-        boolean enableNTCP2 = isNTCPEnabled(context) &&
-                              context.getProperty(PROP_NTCP2_ENABLE, DEFAULT_NTCP2_ENABLE);
+        _enableNTCP1 = false;
+        boolean enableNTCP2 = isNTCPEnabled(context);
         _dhThread = (_enableUDP || enableNTCP2) ? new DHSessionKeyBuilder.PrecalcRunner(context) : null;
         // always created, even if NTCP2 is not enabled, because ratchet needs it
         _xdhThread = new X25519KeyFactory(context);
@@ -144,7 +143,7 @@ public class TransportManager implements TransportEventListener {
             System.out.println(msg);
             _log.logAlways(Log.WARN, msg);
             rv = true;
-        } else if (!SystemVersion.isMac() && Boolean.valueOf(System.getProperty(PROP_JAVA_PROXY2))) {
+        } else if (!SystemVersion.isMac() && Boolean.parseBoolean(System.getProperty(PROP_JAVA_PROXY2))) {
             try {
                 // Use ProxySelector to see if we would be proxied
                 // using a dummy address.
@@ -261,10 +260,7 @@ public class TransportManager implements TransportEventListener {
             initializeAddress(udp);
         }
         if (isNTCPEnabled(_context)) {
-            DHSessionKeyBuilder.PrecalcRunner dh = _enableNTCP1 ? _dhThread : null;
-            boolean enableNTCP2 = _context.getProperty(PROP_NTCP2_ENABLE, DEFAULT_NTCP2_ENABLE);
-            X25519KeyFactory xdh = enableNTCP2 ? _xdhThread : null;
-            Transport ntcp = new NTCPTransport(_context, dh, xdh);
+            Transport ntcp = new NTCPTransport(_context, null, _xdhThread);
             addTransport(ntcp);
             initializeAddress(ntcp);
             if (udp != null) {
@@ -285,9 +281,7 @@ public class TransportManager implements TransportEventListener {
     }
     
     public static boolean isNTCPEnabled(RouterContext ctx) {
-        return ctx.getBooleanPropertyDefaultTrue(PROP_ENABLE_NTCP) &&
-               (ctx.getProperty(PROP_NTCP1_ENABLE, DEFAULT_NTCP1_ENABLE) ||
-                ctx.getProperty(PROP_NTCP2_ENABLE, DEFAULT_NTCP2_ENABLE));
+        return ctx.getBooleanPropertyDefaultTrue(PROP_ENABLE_NTCP);
     }
     
     /**
@@ -319,10 +313,10 @@ public class TransportManager implements TransportEventListener {
         Set<String> ipset = Addresses.getAddresses(_context.getBooleanProperty("i2np.allowLocal"), false, true);
         String lastv4 = _context.getProperty(UDPTransport.PROP_IP);
         String lastv6 = _context.getProperty(UDPTransport.PROP_IPV6);
-        boolean preferTemp = _context.getBooleanProperty(UDPTransport.PROP_LAPTOP_MODE);
+        boolean preferTemp = Boolean.parseBoolean(Addresses.useIPv6TempAddresses());
         //
         // Avoid IPv6 temporary addresses if we have a non-temporary one,
-        // unless laptop mode
+        // unless the kernel prefers them
         //
         boolean hasPreferredV6Address = false;
         List<InetAddress> addresses = new ArrayList<InetAddress>(4);
@@ -450,8 +444,10 @@ public class TransportManager implements TransportEventListener {
         // Always start on Android, as we may have a cellular IPv4 address but
         // are routing all traffic through WiFi.
         // Also, conditions may change rapidly.
-        if (_upnpManager != null && (SystemVersion.isAndroid() || Addresses.getAnyAddress() == null))
+        if (_upnpManager != null && (SystemVersion.isAndroid() || Addresses.getAnyAddress() == null)) {
             _upnpManager.start();
+            _upnpRefresher.schedule(UPNP_REFRESH_TIME);
+        }
         configTransports();
         _log.debug("Starting up the transport manager");
         // Let's do this in a predictable order to make testing easier
@@ -488,8 +484,10 @@ public class TransportManager implements TransportEventListener {
      *  Can be restarted.
      */
     synchronized void stopListening() {
-        if (_upnpManager != null)
+        if (_upnpManager != null) {
+            _upnpRefresher.cancel();
             _upnpManager.stop();
+        }
         for (Transport t : _transports.values()) {
             t.stopListening();
         }
@@ -743,25 +741,43 @@ public class TransportManager implements TransportEventListener {
     static class Port {
         public final String style;
         public final int port;
+        public final boolean isIPv6;
+        public final String ip;
 
+        /**
+         *  IPv4 only
+         */
         public Port(String style, int port) {
             this.style = style;
             this.port = port;
+            isIPv6 = false;
+            ip = null;
+        }
+
+        /**
+         *  IPv6 only
+         *  @since 0.9.50
+         */
+        public Port(String style, String host, int port) {
+            this.style = style;
+            this.port = port;
+            isIPv6 = true;
+            ip = host;
         }
 
         @Override
         public int hashCode() {
-            return style.hashCode() ^ port;
+            return style.hashCode() ^ port ^ DataHelper.hashCode(ip);
         }
 
         @Override
         public boolean equals(Object o) {
-            if (o == null)
-                return false;
+            if (o == this)
+                return true;
             if (! (o instanceof Port))
                 return false;
             Port p = (Port) o;
-            return port == p.port && style.equals(p.style);
+            return port == p.port && style.equals(p.style) && DataHelper.eq(ip, p.ip);
         }
     }
 
@@ -771,6 +787,8 @@ public class TransportManager implements TransportEventListener {
      */
     private Set<Port> getPorts() {
         Set<Port> rv = new HashSet<Port>(4);
+        if (_context.router().isHidden())
+            return rv;
         for (Transport t : _transports.values()) {
             int port = t.getRequestedPort();
             // Use UDP port for NTCP too - see comment in NTCPTransport.getRequestedPort() for why this is here
@@ -780,8 +798,30 @@ public class TransportManager implements TransportEventListener {
                 if (udp != null)
                     port = udp.getRequestedPort();
             }
-            if (port > 0)
-                rv.add(new Port(t.getStyle(), port));
+            if (port > 0) {
+                TransportUtil.IPv6Config config = t.getIPv6Config();
+                // ipv4
+                if (config != TransportUtil.IPv6Config.IPV6_ONLY &&
+                    !t.isIPv4Firewalled()) {
+                    rv.add(new Port(t.getStyle(), port));
+                }
+                // ipv6
+                if (_context.getProperty(PROP_ENABLE_UPNP_IPV6, DEFAULT_ENABLE_UPNP_IPV6) &&
+                    config != TransportUtil.IPv6Config.IPV6_DISABLED &&
+                    !t.isIPv6Firewalled()) {
+                    RouterAddress ra = t.getCurrentAddress(true);
+                    if (ra == null) {
+                        if (t.getStyle().equals(UDPTransport.STYLE)) {
+                            UDPTransport udp = (UDPTransport) t;
+                            ra = udp.getCurrentExternalAddress(true);
+                        }
+                    }
+                    if (ra != null) {
+                        String host = ra.getHost();
+                        rv.add(new Port(t.getStyle(), host, port));
+                    }
+                }
+            }
         }
         return rv;
     }
@@ -949,6 +989,23 @@ public class TransportManager implements TransportEventListener {
                 _upnpUpdateQueued = false;
                 _upnpManager.update(getPorts());
             }
+        }
+    }
+
+    /**
+     * Periodic refresh of UPnP ports.
+     * This is required because UPnP leases expire.
+     * UPnPManager.Rescanner finds new devices but does not refresh the ports.
+     * Caller must schedule.
+     *
+     * @since 0.9.50
+     */
+    private class UPnPRefresher extends SimpleTimer2.TimedEvent {
+        public UPnPRefresher() { super(_context.simpleTimer2()); }
+
+        public void timeReached() {
+            transportAddressChanged();
+            reschedule(UPNP_REFRESH_TIME);
         }
     }
 

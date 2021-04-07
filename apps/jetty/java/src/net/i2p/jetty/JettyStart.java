@@ -38,6 +38,7 @@ import net.i2p.util.VersionComparator;
 
 import org.eclipse.jetty.server.AbstractNetworkConnector;
 import org.eclipse.jetty.server.Connector;
+import org.eclipse.jetty.server.ConnectionFactory;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.util.component.LifeCycle;
 import org.eclipse.jetty.xml.XmlConfiguration;
@@ -196,8 +197,16 @@ public class JettyStart implements ClientApp {
                                                 host = "127.0.0.1";
                                             else if (host.equals("::"))
                                                 host = "::1";
-                                            // see ConnectionFactory javadoc, but from testing, it ends with /1.1
-                                            boolean isSSL = nconn.getConnectionFactory("SSL-http/1.1") != null;
+                                            // at some point this changed from "SSL-http/1.1" to "SSL" and "HTTP/1.1" ?
+                                            boolean isSSL = false;
+                                            //System.out.println("Found connector: " + nconn);
+                                            for (ConnectionFactory fact : nconn.getConnectionFactories()) {
+                                                //System.out.println("  Factory: " + fact + " protocol: " + fact.getProtocol());
+                                                if (fact.getProtocol().startsWith("SSL")) {
+                                                    isSSL = true;
+                                                    break;
+                                                }
+                                            }
                                             String svc;
                                             if (isSSL) {
                                                 _sslPort = port;
@@ -206,8 +215,7 @@ public class JettyStart implements ClientApp {
                                                 _port = port;
                                                 svc = PortMapper.SVC_EEPSITE;
                                             }
-                                            if (pm.getPort(svc) <= 0)
-                                                pm.register(svc, host, port);
+                                            pm.register(svc, host, port);
                                         }
                                     }
                                 }
@@ -253,13 +261,13 @@ public class JettyStart implements ClientApp {
             }
             if (_context != null) {
                 PortMapper pm = _context.portMapper();
-                if (_port > 0 && pm.getPort(PortMapper.SVC_EEPSITE) == _port) {
+                if (_port > 0) {
+                    pm.unregister(PortMapper.SVC_EEPSITE, _port);
                     _port = 0;
-                    pm.unregister(PortMapper.SVC_EEPSITE);
                 }
-                if (_sslPort > 0 && pm.getPort(PortMapper.SVC_HTTPS_EEPSITE) == _sslPort) {
+                if (_sslPort > 0) {
+                    pm.unregister(PortMapper.SVC_HTTPS_EEPSITE, _sslPort);
                     _sslPort = 0;
-                    pm.unregister(PortMapper.SVC_HTTPS_EEPSITE);
                 }
             }
             changeState(STOPPED);

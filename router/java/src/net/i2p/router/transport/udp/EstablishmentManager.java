@@ -375,7 +375,7 @@ class EstablishmentManager {
                     // w/o ext options, it's always 'requested', no need to set
                     // don't ask if they are indirect
                     boolean requestIntroduction = allowExtendedOptions && !isIndirect &&
-                                                  _transport.introducersMaybeRequired();
+                                                  _transport.introducersMaybeRequired(TransportUtil.isIPv6(ra));
                     state = new OutboundEstablishState(_context, maybeTo, to,
                                                        toIdentity, allowExtendedOptions,
                                                        requestIntroduction,
@@ -500,8 +500,8 @@ class EstablishmentManager {
             // TODO if already we have their RI, only offer if they need it (no 'C' cap)
             // if extended options, only if they asked for it
             if (state.isIntroductionRequested() &&
-                _transport.canIntroduce() && state.getSentPort() >= 1024 &&
-                state.getSentIP().length == 4) {
+                state.getSentPort() >= 1024 &&
+                _transport.canIntroduce(state.getSentIP().length == 16)) {
                 // ensure > 0
                 long tag = 1 + _context.random().nextLong(MAX_TAG_VALUE);
                 state.setSentRelayTag(tag);
@@ -625,8 +625,8 @@ class EstablishmentManager {
         //if (admitted > 0)
         //    _log.log(Log.CRIT, "Admitted " + admitted + " with " + remaining + " remaining queued and " + active + " active");
         
-        if (_log.shouldLog(Log.INFO))
-            _log.info("Outbound established completely!  yay: " + state);
+        if (_log.shouldDebug())
+            _log.debug("Outbound established: " + state);
         PeerState peer = handleCompletelyEstablished(state);
         notifyActivity();
         return peer;
@@ -760,8 +760,8 @@ class EstablishmentManager {
      */
     private void sendInboundComplete(PeerState peer) {
         // SimpleTimer.getInstance().addEvent(new PublishToNewInbound(peer), 10*1000);
-        if (_log.shouldLog(Log.INFO))
-            _log.info("Completing to the peer after IB confirm: " + peer);
+        if (_log.shouldDebug())
+            _log.debug("IB confirm: " + peer);
         DeliveryStatusMessage dsm = new DeliveryStatusMessage(_context);
         dsm.setArrival(_networkID); // overloaded, sure, but future versions can check this
                                            // This causes huge values in the inNetPool.droppedDeliveryStatusDelay stat
@@ -943,16 +943,16 @@ class EstablishmentManager {
         _context.statManager().addRateData("udp.sendIntroRelayRequest", 1);
         List<UDPPacket> requests = _builder.buildRelayRequest(_transport, this, state, _transport.getIntroKey());
         if (requests.isEmpty()) {
-            // FIXME need a failed OB state
             if (_log.shouldLog(Log.WARN))
                 _log.warn("No valid introducers! " + state);
-            // set failed state, remove nonce, and return
+            processExpired(state);
+            return;
         }
         for (UDPPacket req : requests) {
             _transport.send(req);
         }
         if (_log.shouldLog(Log.DEBUG))
-            _log.debug("Send intro for " + state + " with our intro key as " + _transport.getIntroKey());
+            _log.debug("Send relay request for " + state + " with our intro key as " + _transport.getIntroKey());
         state.introSent();
     }
 
@@ -1043,13 +1043,13 @@ class EstablishmentManager {
 
     /**
      *  Are IP and port valid? This is only for checking the relay response.
-     *  Reject all IPv6, for now, even if we are configured for it.
+     *  Allow IPv6 as of 0.9.50.
      *  Refuse anybody in the same /16
      *  @since 0.9.3, pkg private since 0.9.45 for PacketBuider
      */
     boolean isValid(byte[] ip, int port) {
         return TransportUtil.isValidPort(port) &&
-               ip != null && ip.length == 4 &&
+               ip != null &&
                _transport.isValid(ip) &&
                (!_transport.isTooClose(ip)) &&
                (!_context.blocklist().isBlocklisted(ip));
@@ -1377,7 +1377,7 @@ class EstablishmentManager {
             boolean removed = _liveIntroductions.remove(Long.valueOf(nonce), outboundState);
             if (removed) {
                 if (_log.shouldLog(Log.DEBUG))
-                    _log.debug("Send intro for " + outboundState + " timed out");
+                    _log.debug("Relay request for " + outboundState + " timed out");
                 _context.statManager().addRateData("udp.sendIntroRelayTimeout", 1);
             }
         }

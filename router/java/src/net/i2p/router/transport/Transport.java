@@ -59,6 +59,18 @@ public interface Transport {
     public List<RouterAddress> getCurrentAddresses();
 
     /**
+     *  What address are we currently listening to?
+     *  Replaces getCurrentAddress()
+     *
+     *  Note: An address without a host is considered IPv4.
+     *
+     *  @param ipv6 true for IPv6 only; false for IPv4 only
+     *  @return first matching address or null
+     *  @since 0.9.50 lifted from TransportImpl
+     */
+    public RouterAddress getCurrentAddress(boolean ipv6);
+
+    /**
      *  Do we have any current address?
      *  @since IPv6
      */
@@ -183,6 +195,25 @@ public interface Transport {
      */
     @Deprecated
     public void recheckReachability();
+
+    /**
+     *  @since 0.9.50 added to interface
+     */
+    public TransportUtil.IPv6Config getIPv6Config();
+
+    /**
+     *  This returns true if the force-firewalled setting is configured, false otherwise.
+     *
+     *  @since 0.9.50 added to interface
+     */
+    public boolean isIPv4Firewalled();
+
+    /**
+     *  This returns true if the force-firewalled setting is configured, false otherwise.
+     *
+     *  @since 0.9.50 added to interface
+     */
+    public boolean isIPv6Firewalled();
 
     public boolean isBacklogged(Hash peer);
 

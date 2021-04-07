@@ -100,6 +100,8 @@ body.iframed {
      position: relative;
      text-shadow: 0 1px 1px #000;
      border-radius: 12px;
+     background-color: #2c4e8f;
+     color: #7b7;
 }
 
 #navi a:hover, #navi a:focus  {
@@ -107,6 +109,11 @@ body.iframed {
     color: #da736b !important;
     background: #000;
     z-index: 10;
+}
+
+.invisible {
+     visibility: hidden;
+     display: none;
 }
 
 #navi a:active {
@@ -564,6 +571,16 @@ tr.list0 {
      margin: 10px -31px;
 }
 
+.expanded {
+     background: url(/themes/console/light/images/dropdown_active.png) #f8f8ff !important;
+     background-repeat: no-repeat !important;
+     background-position: .5%, 15% !important;
+}
+
+#addrtitle.expanded {
+     background: url(../images/addressbook.png) 6px center no-repeat #fcfcff !important;
+}
+
 .help h3:first-child {
      margin-top: -21px;
 }
@@ -605,6 +622,11 @@ tr.list0 {
 #helpconfig li b {
      font-family: "Droid Sans Mono", "Noto Mono", "Lucida Console", monospace;
      color: #990;
+}
+
+#helpconfig h3 {
+    background-image: none;
+    padding: 6px 16px;
 }
 
 div#content p {

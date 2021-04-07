@@ -97,6 +97,9 @@ import org.cybergarage.xml.NodeList;
 import org.cybergarage.xml.Parser;
 import org.cybergarage.xml.ParserException;
 
+import net.i2p.util.Addresses;
+import net.i2p.router.transport.TransportUtil;
+
 public class ControlPoint implements HTTPRequestListener
 {
 	private final static int DEFAULT_EVENTSUB_PORT = 8058;
@@ -105,6 +108,9 @@ public class ControlPoint implements HTTPRequestListener
 	
 	private final static String DEFAULT_EVENTSUB_URI = "/evetSub";
 	
+	// I2P
+	private static final boolean ALLOW_IPV6_LOCATION = true;
+
 	////////////////////////////////////////////////
 	//	Member
 	////////////////////////////////////////////////
@@ -242,15 +248,9 @@ public class ControlPoint implements HTTPRequestListener
 	{
 		if (ssdpPacket.isRootDevice() == false)
 			return;
-			
+
 		String usn = ssdpPacket.getUSN();
-		String udn = USN.getUDN(usn);
-		Device dev = getDevice(udn);
-		if (dev != null) {
-			dev.setSSDPPacket(ssdpPacket);
-			return;
-		}
-		
+
 		String location = ssdpPacket.getLocation();
 		try {	
 			URL locationUrl = new URL(location);
@@ -263,13 +263,64 @@ public class ControlPoint implements HTTPRequestListener
 					return;
 				}
 			}
+			// I2P
+			// We duplicate all the checks in Parser.parse() because they
+			// are bypassed for a known device.
+			// Devices may send two SSDP responses, one with an IPv4 location
+			// and one with an IPv6 location.
+			// Do these check BEFORE we call dev.setSSDPPacket() so we don't
+			// overwrite the SSDPPacket in DeviceData.
+			// TODO handle multiple locations in DeviceData.
+			String host = locationUrl.getHost();
+			if (host == null) {
+				Debug.warning("Ignoring device with bad URL at " + location);
+				return;
+			}
+			if (host.startsWith("127.")) {
+				Debug.warning("Ignoring localhost device at " + location);
+				return;
+			}
+			if (host.startsWith("[") && host.endsWith("]")) {
+				if (!ALLOW_IPV6_LOCATION) {
+					Debug.warning("Ignoring IPv6 device at " + location);
+					return;
+				}
+				// fixup for valid checks below
+				host = host.substring(1, host.length() - 1);
+			}
+			if (!"http".equals(locationUrl.getProtocol())) {
+				Debug.warning("Ignoring non-http device at " + location);
+				return;
+			}
+			if (!Addresses.isIPv4Address(host) &&
+			    (!ALLOW_IPV6_LOCATION || !Addresses.isIPv6Address(host))) {
+				Debug.warning("Ignoring non-IPv4 address at " + location);
+				return;
+			}
+			byte[] ip = Addresses.getIP(host);
+			if (ip == null) {
+				Debug.warning("Ignoring bad IP at " + location);
+				return;
+			}
+			if (TransportUtil.isPubliclyRoutable(ip, ALLOW_IPV6_LOCATION)) {
+				Debug.warning("Ignoring public address at " + location);
+				return;
+			}
+			String udn = USN.getUDN(usn);
+			Device dev = getDevice(udn);
+			if (dev != null) {
+				Debug.message("Additional SSDP for " + udn + " at " + location);
+				dev.setSSDPPacket(ssdpPacket);
+				return;
+			}
+
 			Parser parser = UPnP.getXMLParser();
 			Node rootNode = parser.parse(locationUrl);
 			Device rootDev = getDevice(rootNode);
 			if (rootDev == null)
 				return;
 			rootDev.setSSDPPacket(ssdpPacket);
-			Debug.warning("Add root device", new Exception("received on " + ssdpPacket.getLocalAddress()));
+			Debug.warning("Add root device at " + location, new Exception("received on " + ssdpPacket.getLocalAddress()));
 			addDevice(rootNode);
 
 			// Thanks for Oliver Newell (2004/10/16)

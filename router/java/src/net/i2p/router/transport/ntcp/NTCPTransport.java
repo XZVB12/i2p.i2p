@@ -416,7 +416,8 @@ public class NTCPTransport extends TransportImpl {
                     // Queue the message, and our RI
                     // doesn't do anything yet, just enqueues it
                     con.send(msg);
-                    con.enqueueInfoMessage();
+                    // does nothing for outbound NTCP2
+                    //con.enqueueInfoMessage();
                 } else if (shouldFlood || newVersion == 1) {
                     // Queue the message, which is a DSM of our RI
                     con.send(msg);
@@ -501,9 +502,8 @@ public class NTCPTransport extends TransportImpl {
             return null;
         // passed in dataSize assumes 16 byte header, if NTCP2 then
         // we have a 9-byte header so there's 7 to spare
-        if (dataSize > NTCPConnection.NTCP2_MAX_MSG_SIZE + 7 ||
-            (!_enableNTCP2 && dataSize > NTCPConnection.NTCP1_MAX_MSG_SIZE)) {
-            // Too big for NTCP2, or NTCP2 disabled and too big for NTCP1
+        if (dataSize > NTCPConnection.NTCP2_MAX_MSG_SIZE + 7) {
+            // Too big for NTCP2
             // Let SSU deal with it
             _context.statManager().addRateData("ntcp.noBidTooLargeI2NP", dataSize);
             return null;
@@ -521,14 +521,6 @@ public class NTCPTransport extends TransportImpl {
 
         boolean established = isEstablished(peer);
         if (established) { // should we check the queue size?  nah, if its valid, use it
-            if (dataSize > NTCPConnection.NTCP1_MAX_MSG_SIZE) {
-                // Must be version 2 to send a big message
-                NTCPConnection con = _conByIdent.get(peer);
-                if (con == null || con.getVersion() < NTCP2_INT_VERSION) {
-                    _context.statManager().addRateData("ntcp.noBidTooLargeI2NP", dataSize);
-                    return null;
-                }
-            }
             return _fastBid;
         }
         if (toAddress.getNetworkId() != _networkID) {
@@ -537,12 +529,6 @@ public class NTCPTransport extends TransportImpl {
                 _log.warn("Not in our network: " + toAddress, new Exception());
             markUnreachable(peer);
             return null;    
-        }
-        if (dataSize > NTCPConnection.NTCP1_MAX_MSG_SIZE) {
-            // Not established, too big for NTCP 1, let SSU deal with it
-            // TODO look at his addresses to see if NTCP2 supported?
-            _context.statManager().addRateData("ntcp.noBidTooLargeI2NP", dataSize);
-            return null;
         }
 
         RouterAddress addr = getTargetAddress(toAddress);
@@ -865,18 +851,23 @@ public class NTCPTransport extends TransportImpl {
             // all detected interfaces
             Collection<InetAddress> addrs = getSavedLocalAddresses();
             if (!addrs.isEmpty() && !_context.router().isHidden()) {
+                int count = 0;
                 for (InetAddress ia : addrs) {
+                    boolean ipv6 = ia instanceof Inet6Address;
+                    if ((ipv6 && (isIPv6Firewalled() || _context.getBooleanProperty(PROP_IPV6_FIREWALLED))) ||
+                        (!ipv6 && isIPv4Firewalled()))
+                        continue;
                     OrderedProperties props = new OrderedProperties();
                     props.setProperty(RouterAddress.PROP_HOST, ia.getHostAddress());
                     props.setProperty(RouterAddress.PROP_PORT, Integer.toString(port));
                     addNTCP2Options(props);
-                    boolean ipv6 = ia instanceof Inet6Address;
-                    if (!ipv6 || !_context.getBooleanProperty(PROP_IPV6_FIREWALLED)) {
-                        int cost = getDefaultCost(ipv6);
-                        myAddress = new RouterAddress(getPublishStyle(), props, cost);
-                        replaceAddress(myAddress);
-                    }
+                    int cost = getDefaultCost(ipv6);
+                    myAddress = new RouterAddress(getPublishStyle(), props, cost);
+                    replaceAddress(myAddress);
+                    count++;
                 }
+                if (count <= 0)
+                    setOutboundNTCP2Address();
             } else if (_enableNTCP2) {
                 setOutboundNTCP2Address();
             }
@@ -1247,8 +1238,20 @@ public class NTCPTransport extends TransportImpl {
         if (!_enableNTCP2)
             return;
         // only set i if we are not firewalled
-        if (props.containsKey("host"))
+        if (props.containsKey("host")) {
             props.setProperty("i", _b64Ntcp2StaticIV);
+            props.remove("caps");
+        } else if (_context.getProperty(PROP_TRANSPORT_CAPS, ENABLE_TRANSPORT_CAPS)) {
+            String caps;
+            TransportUtil.IPv6Config config = getIPv6Config();
+            if (config == IPV6_ONLY)
+                caps = CAP_IPV6;
+            else if (config != IPV6_DISABLED && _haveIPv6Address)
+                caps = CAP_IPV4_IPV6;
+            else
+                caps = CAP_IPV4;
+            props.setProperty("caps", caps);
+        }
         props.setProperty("s", _b64Ntcp2StaticPubkey);
         props.setProperty("v", NTCP2_VERSION);
     }
@@ -1518,9 +1521,10 @@ public class NTCPTransport extends TransportImpl {
             if (_log.shouldLog(Log.WARN))
                 _log.warn("Old status: " + old + " New status: " + status +
                           " from: ", new Exception("traceback"));
-            if (old != Status.UNKNOWN)
+            if (old != Status.UNKNOWN && _context.router().getUptime() > 5*60*1000L) {
                 _context.router().eventLog().addEvent(EventLog.REACHABILITY,
                    "from " + _t(old.toStatusString()) + " to " +  _t(status.toStatusString()));
+            }
         }
         _context.router().rebuildRouterInfo();
     }
@@ -1765,6 +1769,10 @@ public class NTCPTransport extends TransportImpl {
      * Previously returned short, now enum as of 0.9.20
      */
     public Status getReachabilityStatus() { 
+        boolean fwV4 = isIPv4Firewalled();
+        boolean fwV6 = isIPv6Firewalled();
+        if (fwV4 && fwV6)
+            return Status.REJECT_UNSOLICITED;
         if (!isAlive())
             return Status.UNKNOWN;
         TransportUtil.IPv6Config config = getIPv6Config();
@@ -1779,8 +1787,8 @@ public class NTCPTransport extends TransportImpl {
             v4Disabled = false;
             v6Disabled = false;
         }
-        boolean hasV4 = getCurrentAddress(false) != null;
-        boolean hasV6 = getCurrentAddress(true) != null;
+        boolean hasV4 = !fwV4 && getCurrentAddress(false) != null;
+        boolean hasV6 = !fwV6 && getCurrentAddress(true) != null;
         boolean showFirewalled = !_context.getBooleanPropertyDefaultTrue(TransportManager.PROP_ENABLE_UDP) &&
                                  _context.router().getUptime() > 10*60*1000;
         if (!hasV4 && !hasV6) {
@@ -1796,12 +1804,16 @@ public class NTCPTransport extends TransportImpl {
                 return Status.OK;
             if (!_haveIPv6Address)
                 return Status.OK;
+            if (fwV6)
+                return Status.IPV4_OK_IPV6_FIREWALLED;
             if (!hasV6)
                 return Status.IPV4_OK_IPV6_UNKNOWN;
         }
         if (v6OK) {
             if (v4Disabled)
                 return Status.IPV4_DISABLED_IPV6_OK;
+            if (fwV4)
+                return Status.IPV4_FIREWALLED_IPV6_OK;
             if (!hasV4)
                 return showFirewalled ? Status.IPV4_FIREWALLED_IPV6_OK : Status.IPV4_UNKNOWN_IPV6_OK;
         }
